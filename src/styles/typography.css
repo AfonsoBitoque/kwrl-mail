@@ -1,0 +1,137 @@
+/* ==========================================================================
+   TINTA — TIPOGRAFIA
+   Uma só família (sistema Apple/OS), base 13px, font-variant-numeric: tabular-nums.
+   Hierarquia por peso e cinza, não por tamanho.
+   ========================================================================== */
+
+html {
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-family);
+  font-size: 13px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Título da Lista */
+.tinta-title-list {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--ink);
+  margin: 0;
+}
+
+/* Assunto na Leitura */
+.tinta-title-reading {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 0;
+}
+
+/* Remetente na lista */
+.tinta-sender-unread {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.tinta-sender-read {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* Assunto na lista */
+.tinta-subject-list {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+/* Pré-visualização na lista */
+.tinta-preview-list {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--mute);
+  line-height: 1.35;
+}
+
+/* Horas */
+.tinta-time {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--faint);
+}
+
+/* Cabeçalhos de grupo */
+.tinta-group-header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--faint);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+/* Corpo do e-mail */
+.tinta-email-body {
+  font-size: 14.5px;
+  font-weight: 400;
+  line-height: 1.65;
+  color: var(--ink);
+}
+
+/* Rótulos e metadados de apoio */
+.tinta-meta-faint {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--faint);
+}
+
+.tinta-meta-mute {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--mute);
+}
+
+.tinta-sidebar-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--faint);
+}
+
+.tinta-sidebar-brand {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.tinta-avatar-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--acc);
+}
+
+.tinta-card-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--acc);
+}
+
+.tinta-chip-text {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mute);
+}

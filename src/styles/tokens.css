@@ -1,0 +1,109 @@
+/* ==========================================================================
+   TINTA — DESIGN TOKENS
+   Utilitário, calmo e preciso (linha Apple Mail / iCloud Mail)
+   Identidade: Lavanda acinzentada (#7567a3 / #b4a9d6) e neutros ligeiramente arroxeados
+   ========================================================================== */
+
+:root,
+[data-theme='light'] {
+  --bg: #fcfbfc;
+  --side: #f4f2f5;
+  --line: #e6e2e8;
+  --ink: #1e1a22;
+  --mute: #5e576a;
+  --faint: #7a7385;
+  --acc: #7567a3;
+  --accfill: #7567a3;
+  --soft: #f0eef6;
+  --hov: #ebe7ee;
+  --fill: #f6f4f7;
+
+  /* Aliases compatíveis */
+  --bg-canvas: var(--bg);
+  --bg-rail: var(--side);
+  --bg-elevated: var(--bg);
+  --bg-subtle-fill: var(--fill);
+  --bg-hover: var(--hov);
+  --bg-selected: var(--accfill);
+  --ink-primary: var(--ink);
+  --ink-secondary: var(--mute);
+  --ink-tertiary: var(--faint);
+  --ink-muted: var(--faint);
+  --accent-solid: var(--acc);
+  --accent-hover: var(--accfill);
+  --accent-on-solid: #ffffff;
+  --accent-wash: var(--soft);
+  --accent-wash-strong: var(--soft);
+  --accent-hairline: var(--line);
+  --hairline: var(--line);
+  --hairline-strong: var(--line);
+  --hairline-focus: var(--acc);
+
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --bg: #151218;
+  --side: #1c181f;
+  --line: #2d2832;
+  --ink: #efeaf2;
+  --mute: #aca5b4;
+  --faint: #8c8596;
+  --acc: #b4a9d6;
+  --accfill: #6f629c;
+  --soft: #222030;
+  --hov: #2a2430;
+  --fill: #1b171f;
+
+  /* Aliases compatíveis */
+  --bg-canvas: var(--bg);
+  --bg-rail: var(--side);
+  --bg-elevated: var(--bg);
+  --bg-subtle-fill: var(--fill);
+  --bg-hover: var(--hov);
+  --bg-selected: var(--accfill);
+  --ink-primary: var(--ink);
+  --ink-secondary: var(--mute);
+  --ink-tertiary: var(--faint);
+  --ink-muted: var(--faint);
+  --accent-solid: var(--acc);
+  --accent-hover: var(--accfill);
+  --accent-on-solid: #ffffff;
+  --accent-wash: var(--soft);
+  --accent-wash-strong: var(--soft);
+  --accent-hairline: var(--line);
+  --hairline: var(--line);
+  --hairline-strong: var(--line);
+  --hairline-focus: var(--acc);
+
+  color-scheme: dark;
+}
+
+:root {
+  --font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Segoe UI", Roboto, sans-serif;
+
+  /* Dimensões do layout 3 colunas */
+  --sidebar-width: 220px;
+  --list-width: 360px;
+  --content-max-width: 100%;
+
+  /* Formas (sem sombras) */
+  --radius-lg: 8px;   /* controlos e botões */
+  --radius-xl: 12px;  /* cartões e linhas selecionadas */
+  --radius-full: 9999px; /* só avatares, chips e botão de envio */
+
+  /* Transição suave de estados */
+  --duration-fast: 120ms;
+  --ease-calm: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

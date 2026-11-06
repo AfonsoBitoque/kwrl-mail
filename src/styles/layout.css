@@ -1,0 +1,1697 @@
+/* ==========================================================================
+   CORVO — ESTRUTURA ESPACIAL & BARELY-THERE UI (src/styles/layout.css)
+   ==========================================================================
+   Decisões estruturais ligadas às diretrizes (§2.1, §2.3 & §4):
+   1. Uma única camada de contenção: proibido "cartão dentro de cartão". As áreas
+      separam-se por hairlines contínuas de 1px (var(--hairline)) e ritmo vertical.
+   2. Assimetria Intencional:
+      - Coluna de navegação estreita e silenciosa (232px), colapsável em Modo Foco
+        para dedicar >80% do ecrã à leitura editorial e resposta.
+      - Lista de e-mails com alturas de linha variáveis consoante a densidade da
+        conversa: notas breves ocupam uma faixa compacta; conversas densas ou com
+        compromisso pendente respiram com excerto e marcador contextual.
+   3. Sem barras laterais grossas (4px SaaS): qualquer indicação de estado ativo ou
+      proveniência de IA usa filetes finos de 1px ou ponto tipográfico sólido.
+   4. A IA Espera, Não Interrompe: o painel de IA funciona como uma coluna de
+      marginalia editorial à direita, sem pop-ups, sem modais bloqueantes e sem
+      badges a piscar.
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 1px solid var(--hairline-focus);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Shell Principal Desktop — Grelha Assimétrica com Modo Foco
+   -------------------------------------------------------------------------- */
+
+.corvo-shell {
+  display: grid;
+  grid-template-columns: var(--rail-width) var(--list-width) minmax(0, 1fr) var(--ai-margin-width);
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: var(--bg-canvas);
+  transition: grid-template-columns var(--duration-panel) var(--ease-out-calm);
+}
+
+/* Quando o painel lateral de IA está recolhido */
+.corvo-shell--ai-closed {
+  grid-template-columns: var(--rail-width) var(--list-width) minmax(0, 1fr) 0px;
+}
+
+/* Modo Foco (§2.3): recolhe navegação e comprime distrações — ~80%+ para leitura */
+.corvo-shell--focus {
+  grid-template-columns: 0px 288px minmax(0, 1fr) var(--ai-margin-width);
+}
+
+.corvo-shell--focus.corvo-shell--ai-closed {
+  grid-template-columns: 0px 288px minmax(0, 1fr) 0px;
+}
+
+/* --------------------------------------------------------------------------
+   Zona 1: Coluna de Contas & Views Modulares (Barely-There Rail)
+   -------------------------------------------------------------------------- */
+
+.corvo-rail {
+  background-color: var(--bg-rail);
+  border-right: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  transition: opacity var(--duration-micro) var(--ease-out-calm);
+}
+
+.corvo-shell--focus .corvo-rail {
+  opacity: 0;
+  pointer-events: none;
+  border-right-color: transparent;
+}
+
+.rail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-5) var(--space-4) var(--space-4);
+}
+
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  user-select: none;
+}
+
+.brand-mark {
+  color: var(--ink-primary);
+  display: inline-flex;
+  align-items: center;
+}
+
+.rail-section {
+  padding: var(--space-3) var(--space-3) var(--space-2);
+}
+
+.rail-section + .rail-section {
+  border-top: 1px solid var(--hairline);
+}
+
+.rail-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-2) var(--space-2);
+}
+
+.rail-nav-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rail-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 7px var(--space-2);
+  border-radius: var(--radius-sm);
+  text-align: left;
+  color: var(--ink-secondary);
+  font-size: 0.8125rem; /* 13px */
+  transition:
+    background-color var(--duration-micro) var(--ease-out-calm),
+    color var(--duration-micro) var(--ease-out-calm);
+}
+
+.rail-item:hover {
+  background-color: var(--bg-hover);
+  color: var(--ink-primary);
+}
+
+.rail-item--active {
+  background-color: var(--bg-selected);
+  color: var(--ink-primary);
+  font-weight: 500;
+}
+
+.rail-item-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rail-item-icon {
+  color: var(--ink-tertiary);
+  flex-shrink: 0;
+  display: inline-flex;
+}
+
+.rail-item--active .rail-item-icon {
+  color: var(--accent-solid);
+}
+
+.rail-count {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-tertiary);
+}
+
+.rail-item--active .rail-count {
+  color: var(--accent-solid);
+  font-weight: 500;
+}
+
+.account-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background-color: var(--ink-tertiary);
+}
+
+.account-dot--active {
+  background-color: var(--accent-solid);
+}
+
+.account-privacy-tag {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: var(--ink-tertiary);
+  letter-spacing: 0.02em;
+}
+
+.rail-footer {
+  margin-top: auto;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ai-status-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 0.75rem;
+  color: var(--ink-secondary);
+}
+
+.status-pip {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--accent-solid);
+  display: inline-block;
+}
+
+.status-pip--off {
+  background-color: var(--ink-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Zona 3: Painel de Leitura Editorial & Compositor CDLR
+   -------------------------------------------------------------------------- */
+
+.corvo-reading-pane {
+  background-color: var(--bg-canvas);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.reading-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background-color: var(--bg-canvas);
+  border-bottom: 1px solid var(--hairline);
+  padding: var(--space-3) var(--space-8);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.quiet-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  color: var(--ink-secondary);
+  border: 1px solid transparent;
+  transition:
+    background-color var(--duration-micro) var(--ease-out-calm),
+    color var(--duration-micro) var(--ease-out-calm),
+    border-color var(--duration-micro) var(--ease-out-calm);
+}
+
+.quiet-btn:hover {
+  background-color: var(--bg-hover);
+  color: var(--ink-primary);
+}
+
+.quiet-btn--active {
+  background-color: var(--accent-wash);
+  color: var(--accent-solid);
+  border-color: var(--accent-hairline);
+}
+
+.primary-solid-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  background-color: var(--accent-solid);
+  color: var(--accent-on-solid);
+  transition: background-color var(--duration-micro) var(--ease-out-calm);
+}
+
+.primary-solid-btn:hover {
+  background-color: var(--accent-hover);
+}
+
+.primary-solid-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.reading-article {
+  padding: var(--space-8) var(--space-10) var(--space-12);
+  max-width: 780px; /* Enviesa à esquerda (assimetria editorial, nunca centrado) */
+}
+
+.reading-header {
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid var(--hairline);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.reading-meta-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Follow-up Inteligente (§1): integrado discretamente na conversa, sem app externa */
+.followup-strip {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--bg-rail);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.followup-strip--saved {
+  background-color: var(--accent-wash);
+  border-color: var(--accent-hairline);
+}
+
+.followup-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8125rem;
+}
+
+.followup-quote {
+  font-family: var(--font-display);
+  font-style: italic;
+  color: var(--ink-secondary);
+}
+
+/* Mensagens da Thread */
+.message-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.message-item {
+  padding: var(--space-6) 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.message-item--collapsed {
+  padding: var(--space-3) 0;
+}
+
+.message-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.message-item--collapsed .message-header {
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.message-author {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--ink-primary);
+}
+
+.message-author-email {
+  font-weight: 400;
+  font-size: 0.8125rem;
+  color: var(--ink-tertiary);
+  margin-left: var(--space-2);
+}
+
+/* --------------------------------------------------------------------------
+   Compositor de Resposta Contextual (CDLR Mixing + Proveniência IA Fina)
+   -------------------------------------------------------------------------- */
+
+.composer-section {
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+}
+
+.composer-surface {
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.composer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--hairline);
+}
+
+/* Indicador subtil de assistência IA no compositor (§3: filete fino 1px, nunca 4px) */
+.composer-ai-provenance {
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--accent-solid);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: 0.75rem;
+  color: var(--accent-solid);
+}
+
+.composer-textarea {
+  width: 100%;
+  min-height: 152px;
+  resize: vertical;
+  border: none;
+  background: transparent;
+  font-family: var(--font-body);
+  font-size: 0.9375rem;
+  line-height: 1.62;
+  color: var(--ink-primary);
+  max-width: var(--reading-measure);
+}
+
+.composer-textarea--ai-assisted {
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--accent-hairline);
+}
+
+.composer-textarea::placeholder {
+  color: var(--ink-tertiary);
+}
+
+.composer-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--hairline);
+}
+
+.review-gate-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.75rem;
+  color: var(--ink-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* --------------------------------------------------------------------------
+   Assistente de Escrita e Geração de Texto com IA (Tinta)
+   -------------------------------------------------------------------------- */
+
+.tinta-ai-generator-card {
+  border: 1px solid var(--line);
+  background-color: var(--fill);
+  border-radius: var(--radius-xl);
+  padding: 14px 16px;
+  margin: 18px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tinta-ai-preview-box {
+  background-color: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink);
+  white-space: pre-wrap;
+  margin-top: 4px;
+}
+
+.tinta-ai-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 6px;
+}
+
+/* --------------------------------------------------------------------------
+   Botões Tinta (Com contorno arredondado, compactos à volta do texto)
+   -------------------------------------------------------------------------- */
+
+.tinta-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--acc);
+  background-color: var(--soft);
+  color: var(--acc);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: background-color var(--duration-fast), border-color var(--duration-fast), color var(--duration-fast), opacity var(--duration-fast);
+}
+
+.tinta-btn-primary:hover {
+  background-color: var(--accfill);
+  border-color: var(--accfill);
+  color: #ffffff;
+}
+
+.tinta-btn-primary:active {
+  opacity: 0.85;
+}
+
+.tinta-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: var(--line);
+  color: var(--faint);
+  background-color: var(--fill);
+}
+
+.tinta-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--line);
+  background-color: var(--bg);
+  color: var(--mute);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  transition: background-color var(--duration-fast), border-color var(--duration-fast), color var(--duration-fast);
+}
+
+.tinta-btn-secondary:hover {
+  background-color: var(--hov);
+  border-color: var(--acc);
+  color: var(--acc);
+}
+
+.tinta-btn-secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------------------
+   Documentos e PDFs de Contexto / Anexos (Tinta)
+   -------------------------------------------------------------------------- */
+
+.tinta-context-doc-card {
+  border: 1px solid var(--line);
+  background-color: var(--fill);
+  border-radius: var(--radius-lg);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.tinta-context-doc-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tinta-context-doc-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tinta-context-doc-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tinta-context-doc-meta {
+  font-size: 11px;
+  color: var(--faint);
+  flex-shrink: 0;
+}
+
+.tinta-draft-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.tinta-attachment-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  padding: 4px 10px;
+  font-size: 11.5px;
+  color: var(--ink);
+}
+
+.tinta-attachment-pill-name {
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tinta-attachment-pill-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  color: var(--mute);
+  padding: 0;
+  margin-left: 2px;
+  transition: color var(--duration-fast);
+}
+
+.tinta-attachment-pill-remove:hover {
+  color: var(--ink);
+}
+
+/* Painel Lateral Discreto de IA (Marginalia) quando aberto */
+.corvo-ai-margin {
+  background-color: var(--side);
+  border-left: 1px solid var(--line);
+  width: 320px;
+  min-width: 320px;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.ai-margin-header {
+  padding: 16px 16px 12px 16px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ai-margin-section {
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cdlr-tier-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background-color: var(--fill);
+  border-radius: var(--radius-lg);
+  padding: 2px;
+  gap: 2px;
+  border: 1px solid var(--line);
+}
+
+.cdlr-tab-btn {
+  padding: 5px 4px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  color: var(--mute);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  transition: background-color var(--duration-fast), color var(--duration-fast);
+}
+
+.cdlr-tab-btn--active {
+  background-color: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.cdlr-preview-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink);
+  padding: 10px 12px;
+  background-color: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  white-space: pre-wrap;
+}
+
+.text-action-btn {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--acc);
+  background: none;
+  border: none;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.text-action-btn:hover {
+  text-decoration: underline;
+}
+
+/* --------------------------------------------------------------------------
+   Gaveta de Privacidade & Controlo de IA (Sem pop-up intrusivo)
+   -------------------------------------------------------------------------- */
+
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(20, 20, 18, 0.36);
+  z-index: 30;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settings-sheet {
+  width: min(460px, 100vw);
+  height: 100vh;
+  background-color: var(--bg-elevated);
+  border-left: 1px solid var(--hairline-strong);
+  padding: var(--space-6);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.setting-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.form-field-input,
+.form-field-select {
+  width: 100%;
+  padding: 7px 10px;
+  font-size: 0.8125rem;
+  background-color: var(--bg-canvas);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm);
+  color: var(--ink-primary);
+}
+
+/* Responsividade Desktop Compacta (portáteis 13" / janelas divididas) */
+@media (max-width: 1180px) {
+  .corvo-shell {
+    --rail-width: 204px;
+    --list-width: 304px;
+    --ai-margin-width: 296px;
+  }
+
+  .reading-article {
+    padding: var(--space-6) var(--space-6) var(--space-10);
+  }
+}
+
+/* ==========================================================================
+   TINTA — LAYOUT DAS 3 COLUNAS & COMPONENTES PRINCIPAIS
+   ========================================================================== */
+
+.tinta-app-shell {
+  display: flex;
+  flex-direction: row;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: var(--bg);
+}
+
+/* --------------------------------------------------------------------------
+   Coluna 1: Sidebar (220px)
+   -------------------------------------------------------------------------- */
+.tinta-sidebar {
+  width: var(--sidebar-width, 220px);
+  min-width: var(--sidebar-width, 220px);
+  max-width: var(--sidebar-width, 220px);
+  background-color: var(--side);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  user-select: none;
+  overflow: hidden;
+}
+
+.tinta-sidebar-header {
+  padding: 18px 16px 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tinta-brand-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tinta-sidebar-brand {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.tinta-syncing-indicator {
+  font-size: 14px;
+  color: var(--acc);
+  line-height: 1;
+}
+
+.tinta-sidebar-section {
+  padding: 6px 10px;
+}
+
+.tinta-sidebar-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--faint);
+  padding: 4px 8px 6px 8px;
+}
+
+.tinta-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tinta-nav-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: var(--radius-lg);
+  border: none;
+  background: transparent;
+  color: var(--ink);
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color var(--duration-fast);
+}
+
+.tinta-nav-item:hover {
+  background-color: var(--hov);
+}
+
+.tinta-nav-item--active {
+  background-color: var(--hov);
+  font-weight: 500;
+}
+
+.tinta-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.tinta-nav-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tinta-nav-count {
+  font-size: 12px;
+  color: var(--mute);
+  font-variant-numeric: tabular-nums;
+}
+
+.tinta-sidebar-spacer {
+  flex: 1;
+}
+
+.tinta-sidebar-footer {
+  border-top: 1px solid var(--line);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tinta-sidebar-user-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tinta-avatar-sidebar {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  background-color: var(--soft);
+  color: var(--acc);
+  font-size: 10.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tinta-sidebar-user-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tinta-sidebar-user-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tinta-sidebar-user-email {
+  font-size: 10.5px;
+  color: var(--mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tinta-sidebar-settings-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mute);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--duration-fast), color var(--duration-fast);
+}
+
+.tinta-sidebar-settings-btn:hover {
+  background-color: var(--hov);
+  color: var(--ink);
+}
+
+/* --------------------------------------------------------------------------
+   Coluna 2: Lista de Mensagens (360px)
+   -------------------------------------------------------------------------- */
+.tinta-list-pane {
+  width: var(--list-width, 360px);
+  min-width: var(--list-width, 360px);
+  max-width: var(--list-width, 360px);
+  background-color: var(--bg);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.tinta-list-header {
+  padding: 16px 14px 12px 14px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tinta-list-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.tinta-search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--fill);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 5px 9px;
+}
+
+.tinta-search-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--faint);
+}
+
+.tinta-search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  color: var(--ink);
+  outline: none;
+  padding: 0;
+}
+
+.tinta-search-input::placeholder {
+  color: var(--faint);
+}
+
+.tinta-segmented-filter {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background-color: var(--fill);
+  border-radius: var(--radius-lg);
+  padding: 2px;
+  gap: 2px;
+}
+
+.tinta-filter-btn {
+  padding: 4px 6px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  color: var(--mute);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color var(--duration-fast), color var(--duration-fast);
+}
+
+.tinta-filter-btn--active {
+  background-color: var(--bg);
+  color: var(--ink);
+  border-color: var(--line);
+  font-weight: 600;
+}
+
+.tinta-list-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.tinta-list-empty {
+  padding: 32px 16px;
+  text-align: center;
+}
+
+.tinta-group-wrapper {
+  padding-top: 8px;
+}
+
+.tinta-group-header-row {
+  padding: 4px 14px 4px 14px;
+}
+
+.tinta-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tinta-thread-item-wrapper {
+  padding: 0 8px;
+  margin-bottom: 2px;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 72px;
+}
+
+.tinta-thread-card {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-xl);
+  padding: 10px 12px 10px 6px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  transition: background-color var(--duration-fast);
+  contain: layout style;
+}
+
+.tinta-thread-card:hover {
+  background-color: var(--fill);
+}
+
+.tinta-thread-card--selected {
+  background-color: var(--accfill) !important;
+  color: #ffffff !important;
+}
+
+.tinta-unread-slot {
+  width: 7px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tinta-unread-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background-color: var(--acc);
+}
+
+.tinta-unread-dot--selected {
+  background-color: #ffffff;
+}
+
+.tinta-avatar-list {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-full);
+  background-color: var(--soft);
+  color: var(--acc);
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tinta-avatar-list--selected {
+  background-color: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.tinta-thread-lines {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tinta-thread-line-1 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.tinta-sender-selected {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tinta-time--selected {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.tinta-thread-line-2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.tinta-subject-list--selected {
+  color: #ffffff !important;
+}
+
+.tinta-thread-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.tinta-flag-badge {
+  color: var(--acc);
+  display: inline-flex;
+  align-items: center;
+}
+
+.tinta-flag-badge--selected {
+  color: #ffffff !important;
+}
+
+.tinta-thread-line-3 {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tinta-preview-list--selected {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Coluna 3: Painel de Leitura (flex-1)
+   -------------------------------------------------------------------------- */
+.tinta-reading-pane {
+  flex: 1;
+  min-width: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg);
+  position: relative;
+  overflow: hidden;
+}
+
+.tinta-toolbar {
+  height: 48px;
+  min-height: 48px;
+  border-bottom: 1px solid var(--line);
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--bg);
+  z-index: 10;
+}
+
+.tinta-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tinta-toolbar-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--duration-fast);
+}
+
+.tinta-toolbar-btn:hover {
+  background-color: var(--hov);
+}
+
+.tinta-toolbar-btn--active {
+  color: var(--acc);
+  background-color: var(--soft);
+}
+
+.tinta-toolbar-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.tinta-toolbar-separator {
+  width: 1px;
+  height: 18px;
+  background-color: var(--line);
+  margin: 0 4px;
+}
+
+.tinta-reading-scroll-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: 32px;
+}
+
+.tinta-reading-center {
+  width: 100%;
+  max-width: var(--content-max-width, 100%);
+  margin: 0;
+  padding: 28px 48px;
+  box-sizing: border-box;
+}
+
+.tinta-reading-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tinta-avatar-reading {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-full);
+  background-color: var(--soft);
+  color: var(--acc);
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tinta-reading-meta-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tinta-reading-meta-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.tinta-reading-empty {
+  padding: 48px 32px;
+  text-align: center;
+}
+
+/* Cartão de Resumo da IA */
+.tinta-summary-card {
+  background-color: var(--soft);
+  border-radius: var(--radius-xl);
+  padding: 12px 16px;
+  margin: 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tinta-summary-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tinta-summary-body {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.tinta-summary-divider {
+  height: 1px;
+  background-color: var(--line);
+  margin: 4px 0;
+}
+
+.tinta-summary-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tinta-checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.tinta-checklist-item--checked {
+  color: var(--faint);
+  text-decoration: line-through;
+}
+
+.tinta-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--acc);
+  cursor: pointer;
+}
+
+/* Anexo */
+.tinta-attachment-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.tinta-attachment-icon-box {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-lg);
+  background-color: var(--soft);
+  color: var(--acc);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tinta-attachment-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Rascunho de Resposta */
+.tinta-draft-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background-color: var(--bg);
+  padding: 14px 16px;
+  margin: 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tinta-draft-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tinta-btn-discard {
+  font-size: 12px;
+  color: var(--mute);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.tinta-btn-discard:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.tinta-draft-textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--ink);
+  background-color: var(--fill);
+  outline: none;
+}
+
+.tinta-draft-textarea:focus {
+  border-color: var(--acc);
+  background-color: var(--bg);
+}
+
+.tinta-draft-card-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.tinta-draft-card .tinta-btn-primary {
+  background-color: var(--accfill);
+  border-color: var(--accfill);
+  color: #ffffff;
+  border-radius: var(--radius-lg);
+  font-weight: 600;
+  padding: 6px 14px;
+}
+
+.tinta-draft-card .tinta-btn-primary:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.tinta-draft-card .tinta-btn-secondary {
+  border-radius: var(--radius-lg);
+  font-weight: 500;
+  padding: 6px 12px;
+}
+
+/* Rodapé Fixo */
+.tinta-fixed-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--bg);
+  border-top: 1px solid var(--line);
+  padding: 10px 24px 14px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 10;
+}
+
+.tinta-chips-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+
+.tinta-chips-container::-webkit-scrollbar {
+  display: none;
+}
+
+.tinta-chip {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--mute);
+  background-color: var(--bg);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--duration-fast), color var(--duration-fast);
+}
+
+.tinta-chip:hover {
+  border-color: var(--acc);
+  color: var(--acc);
+}
+
+.tinta-reply-field-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--fill);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  padding: 4px 6px 4px 14px;
+  transition: border-color var(--duration-fast), background-color var(--duration-fast);
+}
+
+.tinta-reply-field-wrapper:focus-within {
+  border-color: var(--acc);
+  background-color: var(--bg);
+}
+
+.tinta-reply-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 13.5px;
+  color: var(--ink);
+  outline: none;
+  padding: 6px 0;
+}
+
+.tinta-reply-input::placeholder {
+  color: var(--faint);
+}
+
+.tinta-send-circle-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--hov);
+  color: var(--mute);
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--duration-fast), color var(--duration-fast);
+}
+
+.tinta-send-circle-btn--active {
+  background-color: var(--accfill);
+  color: #ffffff;
+}
+
+/* Aviso de Anular */
+.tinta-undo-toast {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--ink);
+  color: var(--bg);
+  border-radius: var(--radius-lg);
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  z-index: 50;
+}
+
+.tinta-undo-link {
+  color: var(--bg);
+  font-weight: 600;
+  text-decoration: underline;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+/* Responsivo */
+@media (max-width: 768px) {
+  .tinta-sidebar {
+    display: none;
+  }
+}
+

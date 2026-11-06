@@ -1,0 +1,31 @@
+{
+  "name": "corvo-mail",
+  "private": true,
+  "version": "0.2.0",
+  "description": "Corvo — Cliente de e-mail desktop calmo com Gmail real, Keychain e IA local llama.cpp",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --lib",
+    "tauri": "tauri",
+    "tauri:dev": "cargo build --manifest-path src-tauri/Cargo.toml --bin corvo-llm-worker && tauri dev",
+    "tauri:build": "cargo build --release --manifest-path src-tauri/Cargo.toml --bin corvo-llm-worker && tauri build --bundles app && cp src-tauri/target/release/corvo-llm-worker src-tauri/target/release/bundle/macos/Corvo.app/Contents/MacOS/corvo-llm-worker"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.12.4",
+    "pdfjs-dist": "^6.5.438",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5"
+  }
+}

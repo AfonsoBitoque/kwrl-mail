@@ -1,0 +1,1418 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CalmAIPanel } from './components/CalmAIPanel';
+import { ComposeModal } from './components/ComposeModal';
+import { CustomMailboxModal } from './components/CustomMailboxModal';
+import { EmailList, TintaFilterMode } from './components/EmailList';
+import { GmailOnboardingView } from './components/GmailOnboardingView';
+import { PrivacySettingsDrawer } from './components/PrivacySettingsDrawer';
+import { ReadingPane } from './components/ReadingPane';
+import { MAILBOXES, SidebarViews } from './components/SidebarViews';
+import {
+  addCustomAccount,
+  archiveThreads,
+  AttachmentPayload,
+  disconnectGmailAccount,
+  downloadAttachment,
+  fileToBase64,
+  getBootstrapState,
+  installRecommendedModel,
+  isRunningInsideTauri,
+  listCachedThreads,
+  markThreadsReadStatus,
+  mergeSuggestionIntoDraft,
+  openThreadDetail,
+  saveCustomMailboxes,
+  saveOAuthClientCredentials,
+  searchMessagesFts,
+  sendGmailMessage,
+  starThread,
+  startGmailOAuth,
+  streamCdlrSuggestion,
+  subscribeToAiBootstrapProgress,
+  subscribeToAiTokens,
+  subscribeToGmailSync,
+  syncGmailNow,
+  trashThreads,
+  unarchiveThreads,
+  untrashThreads,
+  updateAccountAiPolicy,
+  updateRuntimeSettings,
+  updateUserSignatureName,
+} from './services/tauriBridge';
+import {
+  AccountView,
+  CDLRTier,
+  CustomMailbox,
+  DiscoveredModel,
+  EmailAttachment,
+  LocalModelStatus,
+  ThreadDetail,
+  ThreadListItem,
+} from './types/corvo';
+
+const DEFAULT_MODEL_STATUS: LocalModelStatus = {
+  configured: false,
+  modelPath: null,
+  sha256: null,
+  contextSize: 4096,
+  workerLoadedInRam: false,
+  physicalThreads: 4,
+  allowOllamaFallback: false,
+  ollamaModelTag: 'qwen2.5:3b',
+  bootstrapPhase: 'idle',
+  bootstrapPercent: null,
+  bootstrapError: null,
+};
+
+export const App: React.FC = () => {
+  const tauriRuntime = isRunningInsideTauri();
+
+  // Modo inicial segue prefers-color-scheme com persistência local
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('tinta-theme');
+    if (saved === 'light' || saved === 'dark') return saved;
+    return typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light';
+  });
+
+  const [activeBoxId, setActiveBoxId] = useState<string>('inbox');
+  const [filterMode, setFilterMode] = useState<TintaFilterMode>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [ftsResults, setFtsResults] = useState<ThreadListItem[] | null>(null);
+  const [aiPanelOpen, setAiPanelOpen] = useState<boolean>(true);
+
+  // Caixas personalizadas e diálogo de criação/edição
+  const [customMailboxes, setCustomMailboxes] = useState<CustomMailbox[]>([]);
+  const [customMailboxModalOpen, setCustomMailboxModalOpen] = useState<boolean>(false);
+  const [editingMailbox, setEditingMailbox] = useState<CustomMailbox | null>(null);
+
+  // Janela de Composição e Seleção Múltipla
+  const [composeOpen, setComposeOpen] = useState<boolean>(false);
+  const [composeInitialData, setComposeInitialData] = useState<{
+    to?: string[];
+    cc?: string[];
+    bcc?: string[];
+    subject?: string;
+    body?: string;
+    attachments?: EmailAttachment[];
+    threadId?: string | null;
+    inReplyTo?: string | null;
+  } | null>(null);
+  const [selectedThreadIds, setSelectedThreadIds] = useState<Set<string>>(new Set());
+
+  // Conjuntos locais para marcadas, arquivo, reciclagem e lixo
+  const [starredThreadIds, setStarredThreadIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('tinta-starred-ids');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const [archivedThreadIds, setArchivedThreadIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('tinta-archived-ids');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const [trashThreadIds, setTrashThreadIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('tinta-trash-ids');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const [spamThreadIds, setSpamThreadIds] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('tinta-spam-ids');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  // Aviso de anulação flutuante (6s)
+  const [undoToast, setUndoToast] = useState<{
+    text: string;
+    onUndo: () => void;
+  } | null>(null);
+  const undoTimeoutRef = useRef<number | null>(null);
+
+  // Estado vindo do backend Rust (SQLite + Keychain + worker llama.cpp)
+  const [oauthClientId, setOauthClientId] = useState<string | null>(null);
+  const [oauthSecretInKeychain, setOauthSecretInKeychain] = useState<boolean>(false);
+  const [accounts, setAccounts] = useState<AccountView[]>([]);
+  const [pollIntervalSecs, setPollIntervalSecs] = useState<number>(30);
+  const [masterAiKillSwitch, setMasterAiKillSwitch] = useState<boolean>(false);
+  const [userSignatureName, setUserSignatureName] = useState<string>('Afonso');
+  const [modelStatus, setModelStatus] = useState<LocalModelStatus>(DEFAULT_MODEL_STATUS);
+  const [availableModels, setAvailableModels] = useState<DiscoveredModel[]>([]);
+
+  const [threads, setThreads] = useState<ThreadListItem[]>([]);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [openedThread, setOpenedThread] = useState<ThreadDetail | null>(null);
+
+  const [loadingBody, setLoadingBody] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [isAuthenticating, setIsAuthenticating] = useState<boolean>(false);
+  const [onboardingError, setOnboardingError] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(false);
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+
+  // IA: Resumos e Rascunhos por conversa
+  const [activeTier, setActiveTier] = useState<CDLRTier>('rascunho-curto');
+  const [isGeneratingAi, setIsGeneratingAi] = useState<boolean>(false);
+  const [summariesByThread, setSummariesByThread] = useState<Record<string, string>>({});
+  const [draftsByThread, setDraftsByThread] = useState<Record<string, string>>({});
+  const [userContextByThread, setUserContextByThread] = useState<Record<string, string>>({});
+  const [attachmentsByThread, setAttachmentsByThread] = useState<Record<string, EmailAttachment[]>>({});
+  const [isSummarizing, setIsSummarizing] = useState<boolean>(false);
+
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const replyInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+
+  // Aplica tema ao :root com atributo data-theme
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('tinta-theme', theme);
+  }, [theme]);
+
+  // Persiste marcadas, arquivo e lixo localmente
+  useEffect(() => {
+    localStorage.setItem('tinta-starred-ids', JSON.stringify(Array.from(starredThreadIds)));
+  }, [starredThreadIds]);
+
+  useEffect(() => {
+    localStorage.setItem('tinta-archived-ids', JSON.stringify(Array.from(archivedThreadIds)));
+  }, [archivedThreadIds]);
+
+  useEffect(() => {
+    localStorage.setItem('tinta-trash-ids', JSON.stringify(Array.from(trashThreadIds)));
+  }, [trashThreadIds]);
+
+  useEffect(() => {
+    localStorage.setItem('tinta-spam-ids', JSON.stringify(Array.from(spamThreadIds)));
+  }, [spamThreadIds]);
+
+  // Subscreve tokens de IA em streaming com padrão sem fugas
+  useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+
+    subscribeToAiTokens((evt) => {
+      if (cancelled) return;
+      if (evt.tier === 'resumo-calmo') {
+        setSummariesByThread((prev) => ({
+          ...prev,
+          [evt.threadId]: (prev[evt.threadId] || '') + evt.delta,
+        }));
+      }
+    }).then((fn) => {
+      if (cancelled) {
+        fn();
+      } else {
+        unlisten = fn;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      if (unlisten) unlisten();
+    };
+  }, []);
+
+  const refreshBootstrap = useCallback(async () => {
+    if (!tauriRuntime) return;
+    const boot = await getBootstrapState();
+    setOauthClientId(boot.oauthClientId);
+    setOauthSecretInKeychain(boot.oauthSecretInKeychain);
+    setAccounts(boot.accounts);
+    setPollIntervalSecs(boot.pollIntervalSecs);
+    setMasterAiKillSwitch(boot.masterAiKillSwitch);
+    setUserSignatureName(boot.userSignatureName || 'Afonso');
+    setModelStatus(boot.modelStatus);
+    setAvailableModels(boot.availableModels ?? []);
+    setCustomMailboxes(boot.customMailboxes ?? []);
+    if (boot.accounts.length === 0) {
+      setShowOnboarding(true);
+    }
+  }, [tauriRuntime]);
+
+  const refreshThreadList = useCallback(async () => {
+    if (!tauriRuntime) return;
+    const list = await listCachedThreads({
+      accountEmail: null,
+      searchQuery: null,
+      viewFilter: 'view-unified',
+    });
+    setThreads(list);
+  }, [tauriRuntime]);
+
+  useEffect(() => {
+    if (!tauriRuntime) {
+      setShowOnboarding(true);
+      return;
+    }
+    void refreshBootstrap();
+  }, [tauriRuntime, refreshBootstrap]);
+
+  useEffect(() => {
+    void refreshThreadList();
+  }, [refreshThreadList]);
+
+  // Polling e sync em background
+  useEffect(() => {
+    if (!tauriRuntime) return;
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+
+    subscribeToGmailSync(() => {
+      if (cancelled) return;
+      void refreshBootstrap();
+      void refreshThreadList();
+    }).then((fn) => {
+      if (cancelled) fn();
+      else unlisten = fn;
+    });
+
+    return () => {
+      cancelled = true;
+      if (unlisten) unlisten();
+    };
+  }, [tauriRuntime, refreshBootstrap, refreshThreadList]);
+
+  useEffect(() => {
+    if (!tauriRuntime) return;
+    let cancelled = false;
+    let unlisten: (() => void) | null = null;
+
+    subscribeToAiBootstrapProgress((evt) => {
+      if (cancelled) return;
+      setModelStatus((prev) => ({
+        ...prev,
+        configured: evt.phase === 'ready' ? true : prev.configured,
+        bootstrapPhase: evt.phase,
+        bootstrapPercent: evt.percent,
+        bootstrapError: evt.error,
+      }));
+      if (evt.phase === 'ready') {
+        void refreshBootstrap();
+      }
+    }).then((fn) => {
+      if (cancelled) fn();
+      else unlisten = fn;
+    });
+
+    return () => {
+      cancelled = true;
+      if (unlisten) unlisten();
+    };
+  }, [tauriRuntime, refreshBootstrap]);
+
+  // Contadores dinâmicos para a Sidebar calculados numa passagem linear única O(N)
+  const { boxCounts, accountUnreadCounts, customBoxCounts } = useMemo(() => {
+    const counts: Record<string, number> = {
+      inbox: 0,
+      starred: 0,
+      drafts: 0,
+      sent: 0,
+      archive: 0,
+      spam: 0,
+      trash: 0,
+    };
+
+    const accCounts: Record<string, number> = {};
+    for (const acc of accounts) {
+      accCounts[acc.email] = 0;
+    }
+
+    const cboxCounts: Record<string, number> = {};
+    const boxEmailMap = customMailboxes.map((box) => ({
+      id: box.id,
+      emails: new Set(box.accountEmails.map((e) => e.toLowerCase())),
+    }));
+    for (const box of customMailboxes) {
+      cboxCounts[box.id] = 0;
+    }
+
+    const userEmails = new Set(accounts.map((a) => a.email.toLowerCase()));
+    const userEmailsArr = Array.from(userEmails);
+
+    for (let i = 0; i < threads.length; i++) {
+      const t = threads[i];
+      const isArchived = archivedThreadIds.has(t.id);
+      const isTrashed = trashThreadIds.has(t.id);
+      const isSpam = spamThreadIds.has(t.id);
+      const isStarred = starredThreadIds.has(t.id);
+      const hasDraft = Boolean(draftsByThread[t.id]?.trim());
+      const fromLower = t.fromEmail.toLowerCase();
+      const isSent = userEmails.has(fromLower) || userEmailsArr.some((em) => fromLower.includes(em));
+
+      if (isStarred && !isTrashed) counts.starred += 1;
+      if (hasDraft && !isTrashed) counts.drafts += 1;
+      if (isSent && !isTrashed) counts.sent += 1;
+      if (isArchived && !isTrashed) counts.archive += 1;
+      if (isSpam && !isTrashed) counts.spam += 1;
+      if (isTrashed) counts.trash += 1;
+
+      if (!isArchived && !isTrashed && !isSpam) {
+        counts.inbox += 1;
+        if (t.unread && t.accountEmail) {
+          if (accCounts[t.accountEmail] !== undefined) {
+            accCounts[t.accountEmail] += 1;
+          }
+          const accLower = t.accountEmail.toLowerCase();
+          for (let j = 0; j < boxEmailMap.length; j++) {
+            if (boxEmailMap[j].emails.has(accLower)) {
+              cboxCounts[boxEmailMap[j].id] += 1;
+            }
+          }
+        }
+      }
+    }
+
+    return { boxCounts: counts, accountUnreadCounts: accCounts, customBoxCounts: cboxCounts };
+  }, [threads, archivedThreadIds, trashThreadIds, spamThreadIds, starredThreadIds, draftsByThread, accounts, customMailboxes]);
+
+  // Pesquisa Global Instantânea no SQLite com FTS5 e BM25 (§Ponto 2)
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q || !tauriRuntime) {
+      setFtsResults(null);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const targetAcc = activeBoxId.startsWith('account:')
+        ? activeBoxId.replace('account:', '')
+        : null;
+      void searchMessagesFts(q, targetAcc, 50)
+        .then((res) => {
+          setFtsResults(res || []);
+        })
+        .catch((err) => {
+          console.error('Erro na pesquisa FTS5:', err);
+        });
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, activeBoxId, tauriRuntime]);
+
+  // Filtra as mensagens pertencentes à caixa ativa na Sidebar
+  const mailboxThreads = useMemo(() => {
+    if (ftsResults !== null) {
+      return ftsResults;
+    }
+
+    const userEmails = new Set(accounts.map((a) => a.email.toLowerCase()));
+
+    if (activeBoxId.startsWith('account:')) {
+      const targetEmail = activeBoxId.replace('account:', '').toLowerCase();
+      return threads.filter((t) => {
+        const matchesAccount = (t.accountEmail || '').toLowerCase() === targetEmail;
+        return matchesAccount && !archivedThreadIds.has(t.id) && !trashThreadIds.has(t.id) && !spamThreadIds.has(t.id);
+      });
+    }
+
+    if (activeBoxId.startsWith('custom:')) {
+      const customId = activeBoxId.replace('custom:', '');
+      const customBox = customMailboxes.find((b) => b.id === customId);
+      if (!customBox) return [];
+      const targetEmails = new Set(customBox.accountEmails.map((e) => e.toLowerCase()));
+      return threads.filter((t) => {
+        const matchesAccount = Boolean(t.accountEmail && targetEmails.has(t.accountEmail.toLowerCase()));
+        return matchesAccount && !archivedThreadIds.has(t.id) && !trashThreadIds.has(t.id) && !spamThreadIds.has(t.id);
+      });
+    }
+
+    return threads.filter((t) => {
+      const isArchived = archivedThreadIds.has(t.id);
+      const isTrashed = trashThreadIds.has(t.id);
+      const isSpam = spamThreadIds.has(t.id);
+      const isStarred = starredThreadIds.has(t.id);
+
+      switch (activeBoxId) {
+        case 'starred':
+          return isStarred && !isTrashed;
+        case 'drafts':
+          return Boolean(draftsByThread[t.id]?.trim()) && !isTrashed;
+        case 'sent': {
+          const fromLower = t.fromEmail.toLowerCase();
+          const isSent = userEmails.has(fromLower);
+          return isSent && !isTrashed;
+        }
+        case 'archive':
+          return isArchived && !isTrashed;
+        case 'spam':
+          return isSpam && !isTrashed;
+        case 'trash':
+          return isTrashed;
+        case 'inbox':
+        default:
+          return !isArchived && !isTrashed && !isSpam;
+      }
+    });
+  }, [threads, activeBoxId, archivedThreadIds, trashThreadIds, spamThreadIds, starredThreadIds, draftsByThread, accounts, customMailboxes, ftsResults]);
+
+  const activeBoxTitle = useMemo(() => {
+    if (activeBoxId.startsWith('account:')) {
+      const email = activeBoxId.replace('account:', '');
+      const acc = accounts.find((a) => a.email.toLowerCase() === email.toLowerCase());
+      return acc?.label || acc?.email || email;
+    }
+    if (activeBoxId.startsWith('custom:')) {
+      const cid = activeBoxId.replace('custom:', '');
+      const cm = customMailboxes.find((m) => m.id === cid);
+      return cm ? cm.name : 'Caixa Personalizada';
+    }
+    if (activeBoxId === 'inbox') {
+      return accounts.length > 1 ? 'Todas as Caixas' : 'Entrada';
+    }
+    const def = MAILBOXES.find((b) => b.id === activeBoxId);
+    return def ? def.label : 'Entrada';
+  }, [activeBoxId, accounts, customMailboxes]);
+
+  const handleSelectThread = useCallback(
+    async (threadId: string) => {
+      setSelectedThreadId(threadId);
+      // Evita realocação do array de threads e re-render se o item já estiver lido
+      setThreads((prev) => {
+        const target = prev.find((t) => t.id === threadId);
+        if (!target || !target.unread) return prev;
+        return prev.map((t) => (t.id === threadId ? { ...t, unread: false } : t));
+      });
+
+      if (!tauriRuntime) return;
+      setLoadingBody(true);
+      try {
+        const payload = await openThreadDetail(threadId);
+        setOpenedThread(payload.thread);
+      } catch (err) {
+        console.error('Falha ao abrir detalhe:', err);
+      } finally {
+        setLoadingBody(false);
+      }
+    },
+    [tauriRuntime]
+  );
+
+  // Auto-seleciona a primeira conversa disponível
+  useEffect(() => {
+    if (showOnboarding) return;
+    if (mailboxThreads.length === 0) {
+      setSelectedThreadId(null);
+      setOpenedThread(null);
+      return;
+    }
+    const stillVisible = mailboxThreads.some((t) => t.id === selectedThreadId);
+    if (!stillVisible) {
+      void handleSelectThread(mailboxThreads[0].id);
+    }
+  }, [mailboxThreads, selectedThreadId, showOnboarding, handleSelectThread]);
+
+  const currentThreadIndex = useMemo(() => {
+    if (!selectedThreadId) return -1;
+    return mailboxThreads.findIndex((t) => t.id === selectedThreadId);
+  }, [mailboxThreads, selectedThreadId]);
+
+  // Exibe aviso de anulação com temporizador de 6 segundos
+  const triggerUndoNotice = (text: string, onUndoAction: () => void) => {
+    if (undoTimeoutRef.current) {
+      window.clearTimeout(undoTimeoutRef.current);
+    }
+    setUndoToast({
+      text,
+      onUndo: () => {
+        onUndoAction();
+        setUndoToast(null);
+        if (undoTimeoutRef.current) window.clearTimeout(undoTimeoutRef.current);
+      },
+    });
+
+    undoTimeoutRef.current = window.setTimeout(() => {
+      setUndoToast(null);
+      undoTimeoutRef.current = null;
+    }, 6000);
+  };
+
+  const handleArchiveThread = () => {
+    if (!selectedThreadId) return;
+    const tid = selectedThreadId;
+    const currentIdx = currentThreadIndex;
+    const accountEmail = openedThread?.accountEmail || accounts[0]?.email || '';
+
+    setArchivedThreadIds((prev) => new Set([...prev, tid]));
+    if (tauriRuntime && accountEmail) {
+      void archiveThreads(accountEmail, [tid]);
+    }
+
+    // Seleciona a próxima mensagem
+    const nextThreads = mailboxThreads.filter((t) => t.id !== tid);
+    if (nextThreads.length > 0) {
+      const nextIdx = Math.min(currentIdx, nextThreads.length - 1);
+      void handleSelectThread(nextThreads[nextIdx].id);
+    }
+
+    triggerUndoNotice('Mensagem arquivada', () => {
+      setArchivedThreadIds((prev) => {
+        const next = new Set(prev);
+        next.delete(tid);
+        return next;
+      });
+      if (tauriRuntime && accountEmail) {
+        void unarchiveThreads(accountEmail, [tid]);
+      }
+      void handleSelectThread(tid);
+    });
+  };
+
+  const handleTrashThread = () => {
+    if (!selectedThreadId) return;
+    const tid = selectedThreadId;
+    const currentIdx = currentThreadIndex;
+    const accountEmail = openedThread?.accountEmail || accounts[0]?.email || '';
+
+    setTrashThreadIds((prev) => new Set([...prev, tid]));
+    if (tauriRuntime && accountEmail) {
+      void trashThreads(accountEmail, [tid]);
+    }
+
+    const nextThreads = mailboxThreads.filter((t) => t.id !== tid);
+    if (nextThreads.length > 0) {
+      const nextIdx = Math.min(currentIdx, nextThreads.length - 1);
+      void handleSelectThread(nextThreads[nextIdx].id);
+    }
+
+    triggerUndoNotice('Mensagem movida para a reciclagem', () => {
+      setTrashThreadIds((prev) => {
+        const next = new Set(prev);
+        next.delete(tid);
+        return next;
+      });
+      if (tauriRuntime && accountEmail) {
+        void untrashThreads(accountEmail, [tid]);
+      }
+      void handleSelectThread(tid);
+    });
+  };
+
+  const handleSpamThread = () => {
+    if (!selectedThreadId) return;
+    const tid = selectedThreadId;
+    setSpamThreadIds((prev) => new Set([...prev, tid]));
+    triggerUndoNotice('Mensagem movida para o lixo', () => {
+      setSpamThreadIds((prev) => {
+        const next = new Set(prev);
+        next.delete(tid);
+        return next;
+      });
+      void handleSelectThread(tid);
+    });
+  };
+
+  const handleToggleStar = () => {
+    if (!selectedThreadId) return;
+    const tid = selectedThreadId;
+    const willStar = !starredThreadIds.has(tid);
+    const accountEmail = openedThread?.accountEmail || accounts[0]?.email || '';
+
+    setStarredThreadIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(tid)) next.delete(tid);
+      else next.add(tid);
+      return next;
+    });
+
+    if (tauriRuntime && accountEmail) {
+      void starThread(accountEmail, tid, willStar);
+    }
+  };
+
+  const handleToggleSelectThread = useCallback((tid: string) => {
+    setSelectedThreadIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(tid)) next.delete(tid);
+      else next.add(tid);
+      return next;
+    });
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedThreadIds(new Set());
+  }, []);
+
+  const handleBulkArchive = () => {
+    if (selectedThreadIds.size === 0) return;
+    const ids = Array.from(selectedThreadIds);
+    setArchivedThreadIds((prev) => new Set([...prev, ...ids]));
+    setSelectedThreadIds(new Set());
+
+    if (tauriRuntime) {
+      const accountEmail = accounts[0]?.email || '';
+      void archiveThreads(accountEmail, ids);
+    }
+    triggerUndoNotice(`${ids.length} conversas arquivadas`, () => {
+      setArchivedThreadIds((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
+      if (tauriRuntime) {
+        const accountEmail = accounts[0]?.email || '';
+        void unarchiveThreads(accountEmail, ids);
+      }
+    });
+  };
+
+  const handleBulkTrash = () => {
+    if (selectedThreadIds.size === 0) return;
+    const ids = Array.from(selectedThreadIds);
+    setTrashThreadIds((prev) => new Set([...prev, ...ids]));
+    setSelectedThreadIds(new Set());
+
+    if (tauriRuntime) {
+      const accountEmail = accounts[0]?.email || '';
+      void trashThreads(accountEmail, ids);
+    }
+    triggerUndoNotice(`${ids.length} conversas movidas para a reciclagem`, () => {
+      setTrashThreadIds((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
+      if (tauriRuntime) {
+        const accountEmail = accounts[0]?.email || '';
+        void untrashThreads(accountEmail, ids);
+      }
+    });
+  };
+
+  const handleBulkMarkRead = (read: boolean) => {
+    if (selectedThreadIds.size === 0) return;
+    const ids = Array.from(selectedThreadIds);
+    setThreads((prev) =>
+      prev.map((t) => (selectedThreadIds.has(t.id) ? { ...t, unread: !read } : t))
+    );
+    setSelectedThreadIds(new Set());
+    if (tauriRuntime) {
+      const accountEmail = accounts[0]?.email || '';
+      void markThreadsReadStatus(accountEmail, ids, read);
+    }
+    triggerUndoNotice(`${ids.length} conversas marcadas como ${read ? 'lidas' : 'não lidas'}`, () => {});
+  };
+
+  const handleDownloadAttachment = async (messageId: string, attachmentId: string, filename: string) => {
+    const accountEmail = openedThread?.accountEmail || accounts[0]?.email || '';
+    if (!tauriRuntime || !accountEmail) return;
+    try {
+      const savedPath = await downloadAttachment(accountEmail, messageId, attachmentId, filename);
+      triggerUndoNotice(`Ficheiro descarregado para ${savedPath}`, () => {});
+    } catch (err) {
+      console.error('Erro ao descarregar anexo:', err);
+      triggerUndoNotice(`Falha ao descarregar anexo: ${err instanceof Error ? err.message : String(err)}`, () => {});
+    }
+  };
+
+  const handleReplyAll = () => {
+    const targetMsg = openedThread?.messages && openedThread.messages[openedThread.messages.length - 1];
+    if (!openedThread || !targetMsg) return;
+
+    const userEmail = (openedThread.accountEmail || accounts[0]?.email || '').toLowerCase();
+    const allRecipients = [targetMsg.senderEmail];
+    if (targetMsg.toHeader) {
+      targetMsg.toHeader.split(',').forEach((t) => {
+        const clean = t.trim().replace(/^.*</, '').replace(/>.*$/, '').trim();
+        if (clean && clean.toLowerCase() !== userEmail && !allRecipients.includes(clean)) {
+          allRecipients.push(clean);
+        }
+      });
+    }
+
+    setComposeInitialData({
+      to: allRecipients,
+      subject: openedThread.subject.toLowerCase().startsWith('re:') ? openedThread.subject : `Re: ${openedThread.subject}`,
+      threadId: openedThread.id,
+      inReplyTo: targetMsg.id,
+    });
+    setComposeOpen(true);
+  };
+
+  const handleForward = () => {
+    const targetMsg = openedThread?.messages && openedThread.messages[openedThread.messages.length - 1];
+    if (!openedThread || !targetMsg) return;
+
+    const fwdHeader = `\n\n---------- Mensagem encaminhada ----------\nDe: ${targetMsg.senderName} <${targetMsg.senderEmail}>\nData: ${targetMsg.displayDate}\nAssunto: ${openedThread.subject}\nPara: ${targetMsg.toHeader}\n\n`;
+    const fwdBody = fwdHeader + (targetMsg.bodyPlain || targetMsg.snippet);
+
+    setComposeInitialData({
+      to: [],
+      subject: openedThread.subject.toLowerCase().startsWith('fwd:') ? openedThread.subject : `Fwd: ${openedThread.subject}`,
+      body: fwdBody,
+    });
+    setComposeOpen(true);
+  };
+
+  const handlePrevThread = () => {
+    if (currentThreadIndex > 0) {
+      const prevId = mailboxThreads[currentThreadIndex - 1].id;
+      void handleSelectThread(prevId);
+    }
+  };
+
+  const handleNextThread = () => {
+    if (currentThreadIndex < mailboxThreads.length - 1) {
+      const nextId = mailboxThreads[currentThreadIndex + 1].id;
+      void handleSelectThread(nextId);
+    }
+  };
+
+  // Atalhos de teclado: J/K navegam, E arquiva, / foca resposta, Esc sai, ⌘J toggle painel IA
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (composeOpen) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setComposeOpen(false);
+          setComposeInitialData(null);
+        }
+        return;
+      }
+
+      const target = e.target as HTMLElement | null;
+      const isTyping =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.tagName === 'SELECT';
+
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'j' || e.key === 'J')) {
+        e.preventDefault();
+        setAiPanelOpen((prev) => !prev);
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        if (target) target.blur();
+        setSettingsOpen(false);
+        return;
+      }
+
+      if (!isTyping && (e.key === 'c' || e.key === 'C')) {
+        e.preventDefault();
+        setComposeInitialData(null);
+        setComposeOpen(true);
+        return;
+      }
+
+      if (!isTyping && e.key === '/') {
+        e.preventDefault();
+        replyInputRef.current?.focus();
+        return;
+      }
+
+      if (!isTyping && (e.key === 'j' || e.key === 'J')) {
+        e.preventDefault();
+        handleNextThread();
+        return;
+      }
+
+      if (!isTyping && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        handlePrevThread();
+        return;
+      }
+
+      if (!isTyping && (e.key === 'e' || e.key === 'E')) {
+        e.preventDefault();
+        handleArchiveThread();
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mailboxThreads, currentThreadIndex, selectedThreadId, composeOpen]);
+
+  // Geração de Resumo com o Motor Corvo local
+  const handleGenerateSummary = async () => {
+    if (!selectedThreadId || isSummarizing) return;
+    const tid = selectedThreadId;
+    const reqId = `req_sum_${Date.now()}`;
+    setIsSummarizing(true);
+    setSummariesByThread((prev) => ({ ...prev, [tid]: '' }));
+
+    try {
+      const completed = await streamCdlrSuggestion(reqId, tid, 'resumo-calmo');
+      setSummariesByThread((prev) => {
+        const existing = prev[tid] || '';
+        const finalTxt = completed.fullText.trim() ? completed.fullText : existing;
+        return { ...prev, [tid]: finalTxt };
+      });
+    } catch (err) {
+      console.error('Falha ao gerar resumo:', err);
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
+  const currentUserContext = selectedThreadId ? userContextByThread[selectedThreadId] || '' : '';
+  const handleUserContextChange = (text: string) => {
+    if (selectedThreadId) {
+      setUserContextByThread((prev) => ({ ...prev, [selectedThreadId]: text }));
+    }
+  };
+
+  // Geração de Texto com IA (Frase, Rascunho curto, Estruturado)
+  const handleGenerateAiTier = async (tier: CDLRTier, overrideContext?: string) => {
+    if (!selectedThreadId || isGeneratingAi) return;
+    const tid = selectedThreadId;
+    const reqId = `req_tier_${Date.now()}`;
+    setActiveTier(tier);
+    setIsGeneratingAi(true);
+
+    const ctx = overrideContext !== undefined ? overrideContext : (userContextByThread[tid] || '');
+    const extraContext = ctx.trim()
+      ? `[Ponto de vista e instruções do utilizador para esta resposta]:\n${ctx.trim()}`
+      : null;
+
+    try {
+      await streamCdlrSuggestion(reqId, tid, tier, extraContext);
+    } catch (err) {
+      console.error('Falha ao gerar texto com IA:', err);
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
+
+  const handleApplyAiToDraft = (text: string, mode: 'append' | 'replace') => {
+    if (!selectedThreadId) return;
+    setDraftsByThread((prev) => {
+      const cur = prev[selectedThreadId] || '';
+      const merged = mergeSuggestionIntoDraft(cur, text, mode);
+      return { ...prev, [selectedThreadId]: merged };
+    });
+  };
+
+  const handleQuickChip = (chip: string) => {
+    if (!selectedThreadId) return;
+    setAiPanelOpen(true);
+    let chipContext = userContextByThread[selectedThreadId] || '';
+
+    if (chip === 'Confirmar') {
+      chipContext = 'Confirmar disponibilidade e total acordo com a mensagem recebida.';
+      setUserContextByThread((prev) => ({ ...prev, [selectedThreadId]: chipContext }));
+      setActiveTier('rascunho-curto');
+      void handleGenerateAiTier('rascunho-curto', chipContext);
+    } else if (chip === 'Pedir mais tempo') {
+      chipContext = 'Pedir mais tempo para analisar com calma e propor voltar ao contacto nos próximos dias.';
+      setUserContextByThread((prev) => ({ ...prev, [selectedThreadId]: chipContext }));
+      setActiveTier('rascunho-curto');
+      void handleGenerateAiTier('rascunho-curto', chipContext);
+    } else if (chip === 'Recusar cordialmente') {
+      chipContext = 'Agradecer a mensagem mas recusar cordialmente por indisponibilidade neste momento.';
+      setUserContextByThread((prev) => ({ ...prev, [selectedThreadId]: chipContext }));
+      setActiveTier('rascunho-estruturado');
+      void handleGenerateAiTier('rascunho-estruturado', chipContext);
+    } else if (chip === 'Frase') {
+      setActiveTier('frase');
+      void handleGenerateAiTier('frase', chipContext);
+    } else if (chip === 'Rascunho curto') {
+      setActiveTier('rascunho-curto');
+      void handleGenerateAiTier('rascunho-curto', chipContext);
+    } else if (chip === 'Estruturado') {
+      setActiveTier('rascunho-estruturado');
+      void handleGenerateAiTier('rascunho-estruturado', chipContext);
+    }
+  };
+
+  const handleCustomReplyPrompt = (prompt: string) => {
+    if (!selectedThreadId) return;
+    setAiPanelOpen(true);
+    setUserContextByThread((prev) => ({ ...prev, [selectedThreadId]: prompt }));
+    setActiveTier('rascunho-curto');
+    void handleGenerateAiTier('rascunho-curto', prompt);
+  };
+
+  const handleDiscardDraft = () => {
+    if (!selectedThreadId) return;
+    setDraftsByThread((prev) => ({ ...prev, [selectedThreadId]: '' }));
+    setAttachmentsByThread((prev) => ({ ...prev, [selectedThreadId]: [] }));
+  };
+
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+
+  const handleSendEmail = async (
+    mode: 'reply' | 'new',
+    customTo?: string,
+    customSubject?: string
+  ) => {
+    if (!selectedThreadId || !openedThread) return;
+    const draft = draftsByThread[selectedThreadId]?.trim();
+    if (!draft) return;
+
+    const accountEmail = openedThread.accountEmail || selectedAccount?.email;
+    if (!accountEmail) {
+      triggerUndoNotice('Nenhuma conta Gmail selecionada para envio.', () => {});
+      return;
+    }
+
+    const lastMsg = openedThread.messages[openedThread.messages.length - 1];
+    const recipient =
+      mode === 'reply' ? lastMsg?.senderEmail || '' : customTo || lastMsg?.senderEmail || '';
+    if (!recipient) {
+      triggerUndoNotice('Por favor indica o endereço de destino (Para:).', () => {});
+      return;
+    }
+
+    let subject =
+      mode === 'reply' ? openedThread.subject : customSubject || openedThread.subject;
+    if (mode === 'reply' && !subject.toLowerCase().startsWith('re:')) {
+      subject = `Re: ${subject}`;
+    }
+
+    const atts = attachmentsByThread[selectedThreadId] || [];
+
+    setIsSendingEmail(true);
+    try {
+      const attachmentPayloads: AttachmentPayload[] = [];
+      for (const att of atts) {
+        let b64 = '';
+        if (att.file) {
+          b64 = await fileToBase64(att.file);
+        } else if (att.dataUrl) {
+          b64 = att.dataUrl.includes(',') ? att.dataUrl.split(',')[1] : att.dataUrl;
+        }
+        if (b64) {
+          const contentType =
+            att.file?.type ||
+            (att.name.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream');
+          attachmentPayloads.push({
+            name: att.name,
+            contentType,
+            dataBase64: b64,
+          });
+        }
+      }
+
+      await sendGmailMessage({
+        accountEmail,
+        to: [recipient],
+        subject,
+        body: draft,
+        threadId: mode === 'reply' ? openedThread.id : null,
+        inReplyTo: mode === 'reply' ? lastMsg?.id : null,
+        attachments: attachmentPayloads,
+      });
+
+      // Limpa rascunho e anexos após envio bem-sucedido
+      setDraftsByThread((prev) => ({ ...prev, [selectedThreadId]: '' }));
+      setAttachmentsByThread((prev) => ({ ...prev, [selectedThreadId]: [] }));
+
+      const modeLabel = mode === 'reply' ? 'como resposta' : 'como novo e-mail';
+      const attMsg = atts.length > 0 ? ` com ${atts.length} anexo(s)` : '';
+      triggerUndoNotice(`E-mail enviado ${modeLabel}${attMsg} com sucesso via Gmail!`, () => {});
+    } catch (err: unknown) {
+      console.error('Erro ao enviar e-mail:', err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      triggerUndoNotice(`Falha ao enviar e-mail: ${errMsg}`, () => {});
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
+  const handleSendCompose = async (payload: {
+    accountEmail: string;
+    to: string[];
+    cc: string[];
+    bcc: string[];
+    subject: string;
+    body: string;
+    bodyHtml?: string | null;
+    threadId?: string | null;
+    inReplyTo?: string | null;
+    attachments: EmailAttachment[];
+  }) => {
+    setIsSendingEmail(true);
+    try {
+      const attachmentPayloads: AttachmentPayload[] = [];
+      for (const att of payload.attachments) {
+        let b64 = '';
+        if (att.file) {
+          b64 = await fileToBase64(att.file);
+        } else if (att.dataUrl) {
+          b64 = att.dataUrl.includes(',') ? att.dataUrl.split(',')[1] : att.dataUrl;
+        }
+        if (b64) {
+          const contentType =
+            att.file?.type ||
+            (att.name.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream');
+          attachmentPayloads.push({
+            name: att.name,
+            contentType,
+            dataBase64: b64,
+          });
+        }
+      }
+
+      await sendGmailMessage({
+        accountEmail: payload.accountEmail,
+        to: payload.to,
+        cc: payload.cc.length > 0 ? payload.cc : undefined,
+        bcc: payload.bcc.length > 0 ? payload.bcc : undefined,
+        subject: payload.subject,
+        body: payload.body,
+        bodyHtml: payload.bodyHtml || null,
+        threadId: payload.threadId || null,
+        inReplyTo: payload.inReplyTo || null,
+        attachments: attachmentPayloads,
+      });
+
+      setComposeOpen(false);
+      setComposeInitialData(null);
+      triggerUndoNotice(`E-mail enviado para ${payload.to.join(', ')} com sucesso!`, () => {});
+      await refreshBootstrap();
+      await refreshThreadList();
+    } catch (err: unknown) {
+      console.error('Erro ao enviar e-mail:', err);
+      const errMsg = err instanceof Error ? err.message : String(err);
+      triggerUndoNotice(`Falha ao enviar e-mail: ${errMsg}`, () => {});
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
+  const currentDraft = selectedThreadId ? draftsByThread[selectedThreadId] || '' : '';
+  const currentSummary = selectedThreadId ? summariesByThread[selectedThreadId] || '' : '';
+
+  const selectedAccount = useMemo(() => {
+    const email = openedThread?.accountEmail;
+    return accounts.find((a) => a.email === email) || accounts[0];
+  }, [accounts, openedThread]);
+
+  const handleCreateOrUpdateCustomMailbox = async (name: string, accountEmails: string[]) => {
+    let nextList: CustomMailbox[];
+    if (editingMailbox) {
+      nextList = customMailboxes.map((m) =>
+        m.id === editingMailbox.id ? { ...m, name, accountEmails } : m
+      );
+    } else {
+      const newBox: CustomMailbox = {
+        id: `cm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        name,
+        accountEmails,
+        color: null,
+      };
+      nextList = [...customMailboxes, newBox];
+    }
+    setCustomMailboxes(nextList);
+    setCustomMailboxModalOpen(false);
+    setEditingMailbox(null);
+    if (tauriRuntime) {
+      try {
+        await saveCustomMailboxes(nextList);
+      } catch (err) {
+        console.error('Erro ao guardar caixas personalizadas:', err);
+      }
+    }
+  };
+
+  const handleDeleteCustomMailbox = async (id: string) => {
+    const nextList = customMailboxes.filter((m) => m.id !== id);
+    setCustomMailboxes(nextList);
+    if (activeBoxId === `custom:${id}`) {
+      setActiveBoxId('inbox');
+    }
+    if (tauriRuntime) {
+      try {
+        await saveCustomMailboxes(nextList);
+      } catch (err) {
+        console.error('Erro ao eliminar caixa personalizada:', err);
+      }
+    }
+  };
+
+  const handleAddAccount = async () => {
+    if (!tauriRuntime) return;
+    setIsAuthenticating(true);
+    try {
+      await startGmailOAuth('modify-and-labels');
+      await refreshBootstrap();
+      await refreshThreadList();
+      triggerUndoNotice('Nova conta Gmail associada com sucesso!', () => {});
+    } catch (err) {
+      console.error('Erro ao adicionar conta:', err);
+      triggerUndoNotice(`Falha ao adicionar conta: ${err instanceof Error ? err.message : String(err)}`, () => {});
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  const shouldRenderOnboarding = showOnboarding || accounts.length === 0;
+
+  return (
+    <div className="tinta-app-shell">
+      {/* Coluna 1: Sidebar (220px) */}
+      <SidebarViews
+        activeBoxId={activeBoxId}
+        boxCounts={boxCounts}
+        accountUnreadCounts={accountUnreadCounts}
+        customBoxCounts={customBoxCounts}
+        accounts={accounts}
+        customMailboxes={customMailboxes}
+        userName={userSignatureName}
+        userEmail={accounts[0]?.email || ''}
+        isSyncing={isSyncing}
+        onSelectBox={setActiveBoxId}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onSyncNow={async () => {
+          setIsSyncing(true);
+          try {
+            await syncGmailNow(null);
+            await refreshBootstrap();
+            await refreshThreadList();
+          } finally {
+            setIsSyncing(false);
+          }
+        }}
+        onAddAccount={handleAddAccount}
+        onCreateCustomMailbox={() => {
+          setEditingMailbox(null);
+          setCustomMailboxModalOpen(true);
+        }}
+        onDeleteCustomMailbox={handleDeleteCustomMailbox}
+        onCompose={() => {
+          setComposeInitialData(null);
+          setComposeOpen(true);
+        }}
+      />
+
+      {/* Coluna 2: Lista (360px) */}
+      <EmailList
+        boxTitle={activeBoxTitle}
+        threads={mailboxThreads}
+        selectedThreadId={selectedThreadId}
+        searchQuery={searchQuery}
+        filterMode={filterMode}
+        starredThreadIds={starredThreadIds}
+        searchInputRef={searchInputRef}
+        showAccountBadge={accounts.length > 1}
+        selectedThreadIds={selectedThreadIds}
+        onToggleSelectThread={handleToggleSelectThread}
+        onClearSelection={handleClearSelection}
+        onBulkArchive={handleBulkArchive}
+        onBulkTrash={handleBulkTrash}
+        onBulkMarkRead={handleBulkMarkRead}
+        onSearchChange={setSearchQuery}
+        onFilterModeChange={setFilterMode}
+        onSelectThread={handleSelectThread}
+      />
+
+      {/* Coluna 3: Painel de Leitura (flex-1) */}
+      {shouldRenderOnboarding ? (
+        <GmailOnboardingView
+          savedClientId={oauthClientId}
+          secretInKeychain={oauthSecretInKeychain}
+          isAuthenticating={isAuthenticating}
+          errorMessage={onboardingError}
+          onSaveCredentials={async (cid, sec) => {
+            setOnboardingError(null);
+            try {
+              await saveOAuthClientCredentials(cid, sec);
+              await refreshBootstrap();
+            } catch (err) {
+              setOnboardingError(err instanceof Error ? err.message : String(err));
+            }
+          }}
+          onStartOAuth={async (mode, label) => {
+            setOnboardingError(null);
+            setIsAuthenticating(true);
+            try {
+              await startGmailOAuth(mode, label);
+              await refreshBootstrap();
+              await refreshThreadList();
+              setShowOnboarding(false);
+            } catch (err) {
+              setOnboardingError(err instanceof Error ? err.message : String(err));
+            } finally {
+              setIsAuthenticating(false);
+            }
+          }}
+        />
+      ) : (
+        <ReadingPane
+          thread={openedThread}
+          threadIndex={currentThreadIndex}
+          totalThreads={mailboxThreads.length}
+          isStarred={selectedThreadId ? starredThreadIds.has(selectedThreadId) : false}
+          theme={theme}
+          loadingBody={loadingBody}
+          aiPanelOpen={aiPanelOpen}
+          summaryText={currentSummary}
+          isSummarizing={isSummarizing}
+          draftText={currentDraft}
+          attachments={selectedThreadId ? attachmentsByThread[selectedThreadId] || [] : []}
+          undoToast={undoToast}
+          replyInputRef={replyInputRef}
+          onToggleStar={handleToggleStar}
+          onArchive={handleArchiveThread}
+          onTrash={handleTrashThread}
+          onSpam={handleSpamThread}
+          onReply={() => replyInputRef.current?.focus()}
+          onForward={handleForward}
+          onReplyAll={handleReplyAll}
+          onDownloadAttachment={handleDownloadAttachment}
+          onPrevThread={handlePrevThread}
+          onNextThread={handleNextThread}
+          onToggleTheme={() => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'))}
+          onToggleAiPanel={() => setAiPanelOpen((prev) => !prev)}
+          onDraftChange={(text) => {
+            if (selectedThreadId) {
+              setDraftsByThread((prev) => ({ ...prev, [selectedThreadId]: text }));
+            }
+          }}
+          onAddAttachment={(att) => {
+            if (selectedThreadId) {
+              setAttachmentsByThread((prev) => ({
+                ...prev,
+                [selectedThreadId]: [...(prev[selectedThreadId] || []), att],
+              }));
+            }
+          }}
+          onRemoveAttachment={(attId) => {
+            if (selectedThreadId) {
+              setAttachmentsByThread((prev) => ({
+                ...prev,
+                [selectedThreadId]: (prev[selectedThreadId] || []).filter((a) => a.id !== attId),
+              }));
+            }
+          }}
+          onDiscardDraft={handleDiscardDraft}
+          onSendEmail={handleSendEmail}
+          isSendingEmail={isSendingEmail}
+          onGenerateSummary={handleGenerateSummary}
+          onQuickChip={handleQuickChip}
+          onSubmitReplyPrompt={handleCustomReplyPrompt}
+        />
+      )}
+
+      {/* Coluna 4 (Opcional/Toggleable com ⌘J): Painel Lateral de IA */}
+      {aiPanelOpen && !shouldRenderOnboarding && openedThread && (
+        <CalmAIPanel
+          thread={openedThread}
+          account={selectedAccount}
+          injectionInspection={null}
+          masterAiKillSwitch={masterAiKillSwitch}
+          modelStatus={modelStatus}
+          availableModels={availableModels}
+          hasExistingDraft={Boolean(currentDraft.trim())}
+          activeTier={activeTier}
+          userContextText={currentUserContext}
+          onUserContextTextChange={handleUserContextChange}
+          onSelectTier={(tier) => setActiveTier(tier)}
+          onApplyGeneratedText={(txt, _tier, mode) => handleApplyAiToDraft(txt, mode)}
+          onRefreshModelStatus={() => void refreshBootstrap()}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onClose={() => setAiPanelOpen(false)}
+          onAttachFileToDraft={(att) => {
+            if (selectedThreadId) {
+              setAttachmentsByThread((prev) => ({
+                ...prev,
+                [selectedThreadId]: [...(prev[selectedThreadId] || []), att],
+              }));
+              triggerUndoNotice(`Ficheiro "${att.name}" anexado ao rascunho de resposta`, () => {});
+            }
+          }}
+        />
+      )}
+
+      {/* Drawer de Definições e Privacidade */}
+      <PrivacySettingsDrawer
+        open={settingsOpen}
+        accounts={accounts}
+        pollIntervalSecs={pollIntervalSecs}
+        masterAiKillSwitch={masterAiKillSwitch}
+        userSignatureName={userSignatureName}
+        modelStatus={modelStatus}
+        availableModels={availableModels}
+        onClose={() => setSettingsOpen(false)}
+        onSaveRuntimeSettings={async (params) => {
+          const nextStatus = await updateRuntimeSettings(params);
+          setPollIntervalSecs(params.pollIntervalSecs);
+          setMasterAiKillSwitch(params.masterAiKillSwitch);
+          setModelStatus(nextStatus);
+        }}
+        onUpdateSignatureName={async (name) => {
+          const saved = await updateUserSignatureName(name);
+          setUserSignatureName(saved);
+        }}
+        onInstallRecommendedModel={async () => {
+          const nextStatus = await installRecommendedModel();
+          setModelStatus(nextStatus);
+          await refreshBootstrap();
+        }}
+        onUpdateAccountPolicy={async (params) => {
+          await updateAccountAiPolicy(params);
+          await refreshBootstrap();
+        }}
+        onDisconnectAccount={async (email) => {
+          await disconnectGmailAccount(email);
+          await refreshBootstrap();
+          await refreshThreadList();
+        }}
+        onAddAccount={handleAddAccount}
+        onAddCustomAccount={async (email, label, provider) => {
+          if (!tauriRuntime) return;
+          try {
+            await addCustomAccount(email, label, provider);
+            await refreshBootstrap();
+            await refreshThreadList();
+            triggerUndoNotice(`Conta ${provider.toUpperCase()} (${email}) associada com sucesso!`, () => {});
+          } catch (err) {
+            console.error('Erro ao associar conta personalizada:', err);
+            triggerUndoNotice(`Falha ao associar conta: ${err instanceof Error ? err.message : String(err)}`, () => {});
+          }
+        }}
+      />
+
+      {/* Modal para Criar / Editar Caixa de Entrada Personalizada */}
+      <CustomMailboxModal
+        open={customMailboxModalOpen}
+        accounts={accounts}
+        initialMailbox={editingMailbox}
+        onClose={() => {
+          setCustomMailboxModalOpen(false);
+          setEditingMailbox(null);
+        }}
+        onSave={handleCreateOrUpdateCustomMailbox}
+      />
+
+      {/* Modal de Compor Novo E-mail */}
+      <ComposeModal
+        open={composeOpen}
+        accounts={accounts}
+        defaultAccountEmail={openedThread?.accountEmail || accounts[0]?.email}
+        initialTo={composeInitialData?.to}
+        initialCc={composeInitialData?.cc}
+        initialBcc={composeInitialData?.bcc}
+        initialSubject={composeInitialData?.subject}
+        initialBody={composeInitialData?.body}
+        initialAttachments={composeInitialData?.attachments}
+        threadId={composeInitialData?.threadId}
+        inReplyTo={composeInitialData?.inReplyTo}
+        onClose={() => {
+          setComposeOpen(false);
+          setComposeInitialData(null);
+        }}
+        onSend={handleSendCompose}
+      />
+    </div>
+  );
+};
