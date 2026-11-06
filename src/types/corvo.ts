@@ -73,6 +73,12 @@ export interface BootstrapState {
   customMailboxes: CustomMailbox[];
 }
 
+export interface MutationResult {
+  succeededIds: string[];
+  failedIds: string[];
+  error?: string | null;
+}
+
 /**
  * Payload leve de listagem IPC (§4.2): sem corpos completos de e-mail.
  */
@@ -91,6 +97,12 @@ export interface ThreadListItem {
   visualDensity: 'compacta' | 'padrao' | 'densa';
   followupStatus: 'sugerido' | 'agendado' | 'dispensado' | null;
   followupLabel: string | null;
+  isInbox?: boolean;
+  isStarred?: boolean;
+  isTrash?: boolean;
+  isSpam?: boolean;
+  isDraft?: boolean;
+  isSent?: boolean;
 }
 
 export interface MessageAttachment {

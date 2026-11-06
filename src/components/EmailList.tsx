@@ -84,20 +84,24 @@ const ThreadCard = React.memo<ThreadCardProps>(({
           <div
             onClick={(e) => {
               e.stopPropagation();
-              onToggleSelectThread(thread.id);
             }}
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               marginRight: '6px',
-              cursor: 'pointer',
             }}
           >
             <input
               type="checkbox"
               checked={isChecked}
-              onChange={() => onToggleSelectThread(thread.id)}
+              onChange={(e) => {
+                e.stopPropagation();
+                onToggleSelectThread(thread.id);
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
               aria-label={`Selecionar conversa de ${thread.fromName || thread.fromEmail}`}
               style={{
                 cursor: 'pointer',

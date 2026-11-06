@@ -109,6 +109,12 @@ pub struct ThreadListItemDto {
     pub visual_density: String,
     pub followup_status: Option<String>,
     pub followup_label: Option<String>,
+    pub is_inbox: bool,
+    pub is_starred: bool,
+    pub is_trash: bool,
+    pub is_spam: bool,
+    pub is_draft: bool,
+    pub is_sent: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -903,14 +909,26 @@ impl LocalDatabase {
                 agg.has_unread,
                 agg.msg_count,
                 f.status,
-                f.suggested_when
+                f.suggested_when,
+                agg.is_inbox,
+                agg.is_starred,
+                agg.is_trash,
+                agg.is_spam,
+                agg.is_draft,
+                agg.is_sent
             FROM (
                 SELECT
                     thread_id,
                     MAX(internal_date_ms) AS max_date,
                     MAX(id) AS max_id,
                     MAX(unread) AS has_unread,
-                    COUNT(*) AS msg_count
+                    COUNT(*) AS msg_count,
+                    MAX(CASE WHEN labels_json LIKE '%\"INBOX\"%' THEN 1 ELSE 0 END) AS is_inbox,
+                    MAX(CASE WHEN labels_json LIKE '%\"STARRED\"%' THEN 1 ELSE 0 END) AS is_starred,
+                    MAX(CASE WHEN labels_json LIKE '%\"TRASH\"%' THEN 1 ELSE 0 END) AS is_trash,
+                    MAX(CASE WHEN labels_json LIKE '%\"SPAM\"%' THEN 1 ELSE 0 END) AS is_spam,
+                    MAX(CASE WHEN labels_json LIKE '%\"DRAFT\"%' THEN 1 ELSE 0 END) AS is_draft,
+                    MAX(CASE WHEN labels_json LIKE '%\"SENT\"%' THEN 1 ELSE 0 END) AS is_sent
                 FROM messages
                 {where_clause}
                 GROUP BY thread_id
@@ -954,6 +972,12 @@ impl LocalDatabase {
                 visual_density: density.to_string(),
                 followup_status: row.get(11)?,
                 followup_label: row.get(12)?,
+                is_inbox: row.get::<_, i32>(13)? != 0,
+                is_starred: row.get::<_, i32>(14)? != 0,
+                is_trash: row.get::<_, i32>(15)? != 0,
+                is_spam: row.get::<_, i32>(16)? != 0,
+                is_draft: row.get::<_, i32>(17)? != 0,
+                is_sent: row.get::<_, i32>(18)? != 0,
             })
         };
 
@@ -1130,7 +1154,13 @@ impl LocalDatabase {
         let sql = if account_email.is_some() {
             "SELECT m.thread_id, m.account_email, COALESCE(a.label, m.account_email), m.from_name, m.from_email,
                     m.subject, m.snippet, m.display_date, m.internal_date_ms, m.unread,
-                    COUNT(m.id) as msg_count, f.status, f.suggested_when
+                    COUNT(m.id) as msg_count, f.status, f.suggested_when,
+                    MAX(CASE WHEN m.labels_json LIKE '%\"INBOX\"%' THEN 1 ELSE 0 END) AS is_inbox,
+                    MAX(CASE WHEN m.labels_json LIKE '%\"STARRED\"%' THEN 1 ELSE 0 END) AS is_starred,
+                    MAX(CASE WHEN m.labels_json LIKE '%\"TRASH\"%' THEN 1 ELSE 0 END) AS is_trash,
+                    MAX(CASE WHEN m.labels_json LIKE '%\"SPAM\"%' THEN 1 ELSE 0 END) AS is_spam,
+                    MAX(CASE WHEN m.labels_json LIKE '%\"DRAFT\"%' THEN 1 ELSE 0 END) AS is_draft,
+                    MAX(CASE WHEN m.labels_json LIKE '%\"SENT\"%' THEN 1 ELSE 0 END) AS is_sent
              FROM (
                  SELECT message_id, bm25(messages_fts) AS rank
                  FROM messages_fts
@@ -1148,7 +1178,13 @@ impl LocalDatabase {
         } else {
             "SELECT m.thread_id, m.account_email, COALESCE(a.label, m.account_email), m.from_name, m.from_email,
                     m.subject, m.snippet, m.display_date, m.internal_date_ms, m.unread,
-                    COUNT(m.id) as msg_count, f.status, f.suggested_when
+                    COUNT(m.id) as msg_count, f.status, f.suggested_when,
+                    MAX(CASE WHEN m.labels_json LIKE '%\"INBOX\"%' THEN 1 ELSE 0 END) AS is_inbox,
+                    MAX(CASE WHEN m.labels_json LIKE '%\"STARRED\"%' THEN 1 ELSE 0 END) AS is_starred,
+                    MAX(CASE WHEN m.labels_json LIKE '%\"TRASH\"%' THEN 1 ELSE 0 END) AS is_trash,
+                    MAX(CASE WHEN m.labels_json LIKE '%\"SPAM\"%' THEN 1 ELSE 0 END) AS is_spam,
+                    MAX(CASE WHEN m.labels_json LIKE '%\"DRAFT\"%' THEN 1 ELSE 0 END) AS is_draft,
+                    MAX(CASE WHEN m.labels_json LIKE '%\"SENT\"%' THEN 1 ELSE 0 END) AS is_sent
              FROM (
                  SELECT message_id, bm25(messages_fts) AS rank
                  FROM messages_fts
@@ -1191,6 +1227,12 @@ impl LocalDatabase {
                 visual_density: density.to_string(),
                 followup_status: row.get(11)?,
                 followup_label: row.get(12)?,
+                is_inbox: row.get::<_, i32>(13).unwrap_or(1) != 0,
+                is_starred: row.get::<_, i32>(14).unwrap_or(0) != 0,
+                is_trash: row.get::<_, i32>(15).unwrap_or(0) != 0,
+                is_spam: row.get::<_, i32>(16).unwrap_or(0) != 0,
+                is_draft: row.get::<_, i32>(17).unwrap_or(0) != 0,
+                is_sent: row.get::<_, i32>(18).unwrap_or(0) != 0,
             })
         };
 

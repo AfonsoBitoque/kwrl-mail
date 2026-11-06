@@ -17,7 +17,7 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 
-use crate::db::{LocalDatabase, StoredAccount, ThreadDetailDto, ThreadListItemDto};
+use crate::db::{DbError, LocalDatabase, StoredAccount, ThreadDetailDto, ThreadListItemDto};
 use crate::gmail_sync::{build_gmail_http_client, GmailSyncEngine, SyncReport};
 use crate::ipc_validation::{
     validate_attachments_total_bytes, validate_email_address, validate_gmail_id,
@@ -942,13 +942,21 @@ async fn send_gmail_message(
     })
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MutationResultDto {
+    pub succeeded_ids: Vec<String>,
+    pub failed_ids: Vec<String>,
+    pub error: Option<String>,
+}
+
 #[tauri::command]
 async fn mark_threads_read_status(
     state: State<'_, CorvoState>,
     account_email: String,
     thread_ids: Vec<String>,
     read: bool,
-) -> Result<(), String> {
+) -> Result<MutationResultDto, String> {
     let clean_email = validate_email_address(&account_email).map_err(|e| e.to_string())?;
 
     let (add, rem): (&[&str], &[&str]) = if read {
@@ -958,6 +966,7 @@ async fn mark_threads_read_status(
     };
 
     let mut succeeded_ids = Vec::with_capacity(thread_ids.len());
+    let mut failed_ids = Vec::new();
     let mut last_error = None;
 
     if let Ok(cfg) = load_oauth_client_config(&state.db) {
@@ -975,6 +984,7 @@ async fn mark_threads_read_status(
             match res {
                 Ok(()) => succeeded_ids.push(tid),
                 Err(e) => {
+                    failed_ids.push(tid);
                     last_error = Some(e.to_string());
                 }
             }
@@ -983,26 +993,30 @@ async fn mark_threads_read_status(
         succeeded_ids = thread_ids.clone();
     }
 
-    if succeeded_ids.is_empty() && !thread_ids.is_empty() {
-        return Err(last_error.unwrap_or_else(|| "Falha remota ao atualizar estado de leitura.".into()));
+    if !succeeded_ids.is_empty() {
+        let db = state.db.clone();
+        let succ_refs = succeeded_ids.clone();
+        tokio::task::spawn_blocking(move || -> Result<(), DbError> {
+            let tids: Vec<&str> = succ_refs.iter().map(|s| s.as_str()).collect();
+            db.update_threads_unread_batch(&tids, !read)?;
+            let updates: Vec<(&str, &[&str], &[&str])> = tids.iter().map(|&tid| (tid, add, rem)).collect();
+            db.update_threads_labels_batch(&updates)?;
+            Ok(())
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
+
+        if let Ok(unread) = state.db.get_total_unread_count() {
+            set_macos_dock_badge(unread);
+        }
     }
 
-    let db = state.db.clone();
-    let succ_refs = succeeded_ids;
-    tokio::task::spawn_blocking(move || {
-        let tids: Vec<&str> = succ_refs.iter().map(|s| s.as_str()).collect();
-        let _ = db.update_threads_unread_batch(&tids, !read);
-        let updates: Vec<(&str, &[&str], &[&str])> = tids.iter().map(|&tid| (tid, add, rem)).collect();
-        let _ = db.update_threads_labels_batch(&updates);
+    Ok(MutationResultDto {
+        succeeded_ids,
+        failed_ids,
+        error: last_error,
     })
-    .await
-    .map_err(|e| e.to_string())?;
-
-    if let Ok(unread) = state.db.get_total_unread_count() {
-        set_macos_dock_badge(unread);
-    }
-
-    Ok(())
 }
 
 #[tauri::command]
@@ -1010,10 +1024,11 @@ async fn archive_threads(
     state: State<'_, CorvoState>,
     account_email: String,
     thread_ids: Vec<String>,
-) -> Result<(), String> {
+) -> Result<MutationResultDto, String> {
     let clean_email = validate_email_address(&account_email).map_err(|e| e.to_string())?;
 
     let mut succeeded_ids = Vec::with_capacity(thread_ids.len());
+    let mut failed_ids = Vec::new();
     let mut last_error = None;
 
     if let Ok(cfg) = load_oauth_client_config(&state.db) {
@@ -1031,6 +1046,7 @@ async fn archive_threads(
             match res {
                 Ok(()) => succeeded_ids.push(tid),
                 Err(e) => {
+                    failed_ids.push(tid);
                     last_error = Some(e.to_string());
                 }
             }
@@ -1039,23 +1055,26 @@ async fn archive_threads(
         succeeded_ids = thread_ids.clone();
     }
 
-    if succeeded_ids.is_empty() && !thread_ids.is_empty() {
-        return Err(last_error.unwrap_or_else(|| "Falha remota ao arquivar conversas.".into()));
+    if !succeeded_ids.is_empty() {
+        let db = state.db.clone();
+        let succ_refs = succeeded_ids.clone();
+        tokio::task::spawn_blocking(move || {
+            let updates: Vec<(&str, &[&str], &[&str])> = succ_refs
+                .iter()
+                .map(|tid| (tid.as_str(), [].as_slice(), ["INBOX"].as_slice()))
+                .collect();
+            db.update_threads_labels_batch(&updates)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
     }
 
-    let db = state.db.clone();
-    let succ_refs = succeeded_ids;
-    tokio::task::spawn_blocking(move || {
-        let updates: Vec<(&str, &[&str], &[&str])> = succ_refs
-            .iter()
-            .map(|tid| (tid.as_str(), [].as_slice(), ["INBOX"].as_slice()))
-            .collect();
-        let _ = db.update_threads_labels_batch(&updates);
+    Ok(MutationResultDto {
+        succeeded_ids,
+        failed_ids,
+        error: last_error,
     })
-    .await
-    .map_err(|e| e.to_string())?;
-
-    Ok(())
 }
 
 #[tauri::command]
@@ -1063,10 +1082,11 @@ async fn unarchive_threads(
     state: State<'_, CorvoState>,
     account_email: String,
     thread_ids: Vec<String>,
-) -> Result<(), String> {
+) -> Result<MutationResultDto, String> {
     let clean_email = validate_email_address(&account_email).map_err(|e| e.to_string())?;
 
     let mut succeeded_ids = Vec::with_capacity(thread_ids.len());
+    let mut failed_ids = Vec::new();
     let mut last_error = None;
 
     if let Ok(cfg) = load_oauth_client_config(&state.db) {
@@ -1084,6 +1104,7 @@ async fn unarchive_threads(
             match res {
                 Ok(()) => succeeded_ids.push(tid),
                 Err(e) => {
+                    failed_ids.push(tid);
                     last_error = Some(e.to_string());
                 }
             }
@@ -1092,23 +1113,26 @@ async fn unarchive_threads(
         succeeded_ids = thread_ids.clone();
     }
 
-    if succeeded_ids.is_empty() && !thread_ids.is_empty() {
-        return Err(last_error.unwrap_or_else(|| "Falha remota ao repor conversas na Caixa de Entrada.".into()));
+    if !succeeded_ids.is_empty() {
+        let db = state.db.clone();
+        let succ_refs = succeeded_ids.clone();
+        tokio::task::spawn_blocking(move || {
+            let updates: Vec<(&str, &[&str], &[&str])> = succ_refs
+                .iter()
+                .map(|tid| (tid.as_str(), ["INBOX"].as_slice(), [].as_slice()))
+                .collect();
+            db.update_threads_labels_batch(&updates)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
     }
 
-    let db = state.db.clone();
-    let succ_refs = succeeded_ids;
-    tokio::task::spawn_blocking(move || {
-        let updates: Vec<(&str, &[&str], &[&str])> = succ_refs
-            .iter()
-            .map(|tid| (tid.as_str(), ["INBOX"].as_slice(), [].as_slice()))
-            .collect();
-        let _ = db.update_threads_labels_batch(&updates);
+    Ok(MutationResultDto {
+        succeeded_ids,
+        failed_ids,
+        error: last_error,
     })
-    .await
-    .map_err(|e| e.to_string())?;
-
-    Ok(())
 }
 
 #[tauri::command]
@@ -1116,10 +1140,11 @@ async fn trash_threads(
     state: State<'_, CorvoState>,
     account_email: String,
     thread_ids: Vec<String>,
-) -> Result<(), String> {
+) -> Result<MutationResultDto, String> {
     let clean_email = validate_email_address(&account_email).map_err(|e| e.to_string())?;
 
     let mut succeeded_ids = Vec::with_capacity(thread_ids.len());
+    let mut failed_ids = Vec::new();
     let mut last_error = None;
 
     if let Ok(cfg) = load_oauth_client_config(&state.db) {
@@ -1137,6 +1162,7 @@ async fn trash_threads(
             match res {
                 Ok(()) => succeeded_ids.push(tid),
                 Err(e) => {
+                    failed_ids.push(tid);
                     last_error = Some(e.to_string());
                 }
             }
@@ -1145,23 +1171,26 @@ async fn trash_threads(
         succeeded_ids = thread_ids.clone();
     }
 
-    if succeeded_ids.is_empty() && !thread_ids.is_empty() {
-        return Err(last_error.unwrap_or_else(|| "Falha remota ao mover para a reciclagem.".into()));
+    if !succeeded_ids.is_empty() {
+        let db = state.db.clone();
+        let succ_refs = succeeded_ids.clone();
+        tokio::task::spawn_blocking(move || {
+            let updates: Vec<(&str, &[&str], &[&str])> = succ_refs
+                .iter()
+                .map(|tid| (tid.as_str(), ["TRASH"].as_slice(), ["INBOX"].as_slice()))
+                .collect();
+            db.update_threads_labels_batch(&updates)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
     }
 
-    let db = state.db.clone();
-    let succ_refs = succeeded_ids;
-    tokio::task::spawn_blocking(move || {
-        let updates: Vec<(&str, &[&str], &[&str])> = succ_refs
-            .iter()
-            .map(|tid| (tid.as_str(), ["TRASH"].as_slice(), ["INBOX"].as_slice()))
-            .collect();
-        let _ = db.update_threads_labels_batch(&updates);
+    Ok(MutationResultDto {
+        succeeded_ids,
+        failed_ids,
+        error: last_error,
     })
-    .await
-    .map_err(|e| e.to_string())?;
-
-    Ok(())
 }
 
 #[tauri::command]
@@ -1169,10 +1198,11 @@ async fn untrash_threads(
     state: State<'_, CorvoState>,
     account_email: String,
     thread_ids: Vec<String>,
-) -> Result<(), String> {
+) -> Result<MutationResultDto, String> {
     let clean_email = validate_email_address(&account_email).map_err(|e| e.to_string())?;
 
     let mut succeeded_ids = Vec::with_capacity(thread_ids.len());
+    let mut failed_ids = Vec::new();
     let mut last_error = None;
 
     if let Ok(cfg) = load_oauth_client_config(&state.db) {
@@ -1190,6 +1220,7 @@ async fn untrash_threads(
             match res {
                 Ok(()) => succeeded_ids.push(tid),
                 Err(e) => {
+                    failed_ids.push(tid);
                     last_error = Some(e.to_string());
                 }
             }
@@ -1198,23 +1229,26 @@ async fn untrash_threads(
         succeeded_ids = thread_ids.clone();
     }
 
-    if succeeded_ids.is_empty() && !thread_ids.is_empty() {
-        return Err(last_error.unwrap_or_else(|| "Falha remota ao restaurar da reciclagem.".into()));
+    if !succeeded_ids.is_empty() {
+        let db = state.db.clone();
+        let succ_refs = succeeded_ids.clone();
+        tokio::task::spawn_blocking(move || {
+            let updates: Vec<(&str, &[&str], &[&str])> = succ_refs
+                .iter()
+                .map(|tid| (tid.as_str(), ["INBOX"].as_slice(), ["TRASH"].as_slice()))
+                .collect();
+            db.update_threads_labels_batch(&updates)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
     }
 
-    let db = state.db.clone();
-    let succ_refs = succeeded_ids;
-    tokio::task::spawn_blocking(move || {
-        let updates: Vec<(&str, &[&str], &[&str])> = succ_refs
-            .iter()
-            .map(|tid| (tid.as_str(), ["INBOX"].as_slice(), ["TRASH"].as_slice()))
-            .collect();
-        let _ = db.update_threads_labels_batch(&updates);
+    Ok(MutationResultDto {
+        succeeded_ids,
+        failed_ids,
+        error: last_error,
     })
-    .await
-    .map_err(|e| e.to_string())?;
-
-    Ok(())
 }
 
 #[tauri::command]
@@ -1223,7 +1257,7 @@ async fn mark_threads_spam(
     account_email: String,
     thread_ids: Vec<String>,
     is_spam: bool,
-) -> Result<(), String> {
+) -> Result<MutationResultDto, String> {
     let clean_email = validate_email_address(&account_email).map_err(|e| e.to_string())?;
 
     let (add, rem): (&[&str], &[&str]) = if is_spam {
@@ -1233,6 +1267,7 @@ async fn mark_threads_spam(
     };
 
     let mut succeeded_ids = Vec::with_capacity(thread_ids.len());
+    let mut failed_ids = Vec::new();
     let mut last_error = None;
 
     if let Ok(cfg) = load_oauth_client_config(&state.db) {
@@ -1250,6 +1285,7 @@ async fn mark_threads_spam(
             match res {
                 Ok(()) => succeeded_ids.push(tid),
                 Err(e) => {
+                    failed_ids.push(tid);
                     last_error = Some(e.to_string());
                 }
             }
@@ -1258,23 +1294,26 @@ async fn mark_threads_spam(
         succeeded_ids = thread_ids.clone();
     }
 
-    if succeeded_ids.is_empty() && !thread_ids.is_empty() {
-        return Err(last_error.unwrap_or_else(|| "Falha remota ao atualizar estado de spam.".into()));
+    if !succeeded_ids.is_empty() {
+        let db = state.db.clone();
+        let succ_refs = succeeded_ids.clone();
+        tokio::task::spawn_blocking(move || {
+            let updates: Vec<(&str, &[&str], &[&str])> = succ_refs
+                .iter()
+                .map(|tid| (tid.as_str(), add, rem))
+                .collect();
+            db.update_threads_labels_batch(&updates)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
     }
 
-    let db = state.db.clone();
-    let succ_refs = succeeded_ids;
-    tokio::task::spawn_blocking(move || {
-        let updates: Vec<(&str, &[&str], &[&str])> = succ_refs
-            .iter()
-            .map(|tid| (tid.as_str(), add, rem))
-            .collect();
-        let _ = db.update_threads_labels_batch(&updates);
+    Ok(MutationResultDto {
+        succeeded_ids,
+        failed_ids,
+        error: last_error,
     })
-    .await
-    .map_err(|e| e.to_string())?;
-
-    Ok(())
 }
 
 #[tauri::command]
@@ -1283,7 +1322,7 @@ async fn star_thread(
     account_email: String,
     thread_id: String,
     starred: bool,
-) -> Result<(), String> {
+) -> Result<MutationResultDto, String> {
     let clean_email = validate_email_address(&account_email).map_err(|e| e.to_string())?;
     let (add, rem): (&[&str], &[&str]) = if starred {
         (&["STARRED"], &[])
@@ -1291,23 +1330,48 @@ async fn star_thread(
         (&[], &["STARRED"])
     };
 
+    let mut last_error = None;
+    let mut succeeded = false;
+
     if let Ok(cfg) = load_oauth_client_config(&state.db) {
-        state
+        match state
             .sync_engine
             .modify_thread_labels_remote(&cfg, &clean_email, &thread_id, add, rem)
             .await
-            .map_err(|e| format!("Falha ao atualizar estrela no Gmail: {}", e))?;
+        {
+            Ok(()) => {
+                succeeded = true;
+            }
+            Err(e) => {
+                last_error = Some(format!("Falha ao atualizar estrela no Gmail: {}", e));
+            }
+        }
+    } else {
+        succeeded = true;
     }
 
-    let db = state.db.clone();
-    let tid_clone = thread_id.clone();
-    tokio::task::spawn_blocking(move || {
-        let _ = db.update_thread_labels(&tid_clone, add, rem);
-    })
-    .await
-    .map_err(|e| e.to_string())?;
+    if succeeded {
+        let db = state.db.clone();
+        let tid_clone = thread_id.clone();
+        tokio::task::spawn_blocking(move || {
+            db.update_thread_labels(&tid_clone, add, rem)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
 
-    Ok(())
+        Ok(MutationResultDto {
+            succeeded_ids: vec![thread_id],
+            failed_ids: Vec::new(),
+            error: None,
+        })
+    } else {
+        Ok(MutationResultDto {
+            succeeded_ids: Vec::new(),
+            failed_ids: vec![thread_id],
+            error: last_error,
+        })
+    }
 }
 
 #[tauri::command]
@@ -1315,10 +1379,11 @@ async fn delete_threads_permanently(
     state: State<'_, CorvoState>,
     account_email: String,
     thread_ids: Vec<String>,
-) -> Result<(), String> {
+) -> Result<MutationResultDto, String> {
     let clean_email = validate_email_address(&account_email).map_err(|e| e.to_string())?;
 
     let mut succeeded_ids = Vec::with_capacity(thread_ids.len());
+    let mut failed_ids = Vec::new();
     let mut last_error = None;
 
     if let Ok(cfg) = load_oauth_client_config(&state.db) {
@@ -1336,6 +1401,7 @@ async fn delete_threads_permanently(
             match res {
                 Ok(()) => succeeded_ids.push(tid),
                 Err(e) => {
+                    failed_ids.push(tid);
                     last_error = Some(e.to_string());
                 }
             }
@@ -1344,20 +1410,23 @@ async fn delete_threads_permanently(
         succeeded_ids = thread_ids.clone();
     }
 
-    if succeeded_ids.is_empty() && !thread_ids.is_empty() {
-        return Err(last_error.unwrap_or_else(|| "Falha remota ao eliminar conversas definitivamente.".into()));
+    if !succeeded_ids.is_empty() {
+        let db = state.db.clone();
+        let succ_refs = succeeded_ids.clone();
+        tokio::task::spawn_blocking(move || {
+            let tids: Vec<&str> = succ_refs.iter().map(|s| s.as_str()).collect();
+            db.delete_threads_local_batch(&tids)
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?;
     }
 
-    let db = state.db.clone();
-    let succ_refs = succeeded_ids;
-    tokio::task::spawn_blocking(move || {
-        let tids: Vec<&str> = succ_refs.iter().map(|s| s.as_str()).collect();
-        let _ = db.delete_threads_local_batch(&tids);
+    Ok(MutationResultDto {
+        succeeded_ids,
+        failed_ids,
+        error: last_error,
     })
-    .await
-    .map_err(|e| e.to_string())?;
-
-    Ok(())
 }
 
 #[tauri::command]

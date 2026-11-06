@@ -1560,4 +1560,91 @@ Content-Type: application/json; charset=UTF-8\r\n\r\n\
         let report = engine.sync_account(&cfg, "ines@atelier.pt", 50).await.unwrap();
         assert_eq!(report.new_history_id, "77700");
     }
+
+    #[tokio::test]
+    async fn remote_403_forbidden_rejects_mutation_and_preserves_local_labels() {
+        let server = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = server.local_addr().unwrap();
+
+        // Servidor simula Gmail devolvendo 403 Forbidden para modify_thread
+        tokio::spawn(async move {
+            let Ok((mut sock, _)) = server.accept().await else { return };
+            let mut buf = [0u8; 2048];
+            let _ = sock.read(&mut buf).await;
+            let body = r#"{"error":{"code":403,"message":"The caller does not have permission"}}"#;
+            let resp = format!(
+                "HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            let _ = sock.write_all(resp.as_bytes()).await;
+        });
+
+        let db = Arc::new(LocalDatabase::open_in_memory().unwrap());
+        db.upsert_account(
+            "ines@atelier.pt",
+            "Atelier",
+            GmailScopeMode::ModifyAndLabels,
+            Some("100"),
+        )
+        .unwrap();
+
+        // Insere mensagem inicial com etiqueta INBOX
+        db.upsert_messages_batch(&[UpsertMessageRecord {
+            id: "msg_403".into(),
+            thread_id: "thread_403".into(),
+            account_email: "ines@atelier.pt".into(),
+            from_name: "Remetente".into(),
+            from_email: "remetente@exemplo.pt".into(),
+            to_header: "ines@atelier.pt".into(),
+            subject: "Assunto Teste".into(),
+            snippet: "Resumo".into(),
+            internal_date_ms: 1730000000000,
+            display_date: "12:00".into(),
+            unread: true,
+            labels_json: r#"["INBOX","UNREAD"]"#.into(),
+            body_plain: None,
+            body_html: None,
+            attachments_json: None,
+            list_unsubscribe: None,
+        }])
+        .unwrap();
+
+        let token_mgr = TokenManager::with_vault(Arc::new(InMemoryTestVault::default()));
+        token_mgr
+            .persist_initial_tokens("ines@atelier.pt", "ya29.ok", 3600, Some("1//rt"), now_epoch())
+            .unwrap();
+
+        let engine = GmailSyncEngine::with_endpoints(
+            build_gmail_http_client().unwrap(),
+            db.clone(),
+            token_mgr,
+            GmailEndpoints {
+                api_base: format!("http://{}", addr),
+                token_url: format!("http://{}/token", addr),
+            },
+        );
+        let cfg = DesktopOAuthClientConfig {
+            client_id: "cid".into(),
+            client_secret: "csec".into(),
+        };
+
+        // Tentativa de arquivar (remover INBOX) remotamente
+        let res = engine
+            .modify_thread_labels_remote(&cfg, "ines@atelier.pt", "thread_403", &[], &["INBOX"])
+            .await;
+
+        // Invariante 1: O pedido remoto TEM de falhar com ApiError status 403
+        match res {
+            Err(GmailSyncError::ApiError { status, .. }) => {
+                assert_eq!(status, 403);
+            }
+            other => panic!("Esperava ApiError com status 403, obteve: {:?}", other),
+        }
+
+        // Invariante 2: Como a mutação remota falhou, a base de dados local NUNCA pode ter as etiquetas alteradas!
+        let threads = db.list_threads_lightweight(Some("ines@atelier.pt"), None, None, 10).unwrap();
+        assert_eq!(threads.len(), 1);
+        assert!(threads[0].is_inbox, "A conversa tem de continuar com is_inbox = true após 403");
+    }
 }

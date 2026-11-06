@@ -532,9 +532,15 @@ fn run_streaming_inference(
 
     let total_ms = started.elapsed().as_millis() as u64;
 
-    // Limpa o KV cache ao terminar para libertar memória gráfica e evitar qualquer contaminação
-    ctx.clear_kv_cache();
-    cached_prompt_tokens.clear();
+    // Prune KV cache de volta ao prefixo partilhado se existir, evitando re-tokenização
+    if !cached_prompt_tokens.is_empty() {
+        if ctx.kv_cache_seq_rm(0, Some(cached_prompt_tokens.len() as u32), None).is_err() {
+            ctx.clear_kv_cache();
+            cached_prompt_tokens.clear();
+        }
+    } else {
+        ctx.clear_kv_cache();
+    }
 
     emit_json_line(
         out_lock,

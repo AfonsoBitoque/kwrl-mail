@@ -1,4 +1,4 @@
-import React, { RefObject, useEffect, useMemo, useRef, useState } from 'react';
+import React, { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatFileSize } from '../services/documentParser';
 import { exportThreadEml, rewriteTextWithAi } from '../services/tauriBridge';
 import { EmailAttachment, ThreadDetail } from '../types/corvo';
@@ -62,10 +62,12 @@ interface ReadingPaneProps {
 }
 
 function sanitizeHtmlAndCountTrackers(rawHtml: string): { cleanHtml: string; blockedTrackers: number } {
+  if (!rawHtml || typeof rawHtml !== 'string') {
+    return { cleanHtml: '', blockedTrackers: 0 };
+  }
+
   let count = 0;
   const trackerPatterns = [
-    /width=["']?[01]["']?\s+height=["']?[01]["']?/i,
-    /height=["']?[01]["']?\s+width=["']?[01]["']?/i,
     /open\.track/i,
     /mailchimp\.com\/track/i,
     /hubspot\.com\/email-tracking/i,
@@ -76,39 +78,83 @@ function sanitizeHtmlAndCountTrackers(rawHtml: string): { cleanHtml: string; blo
     /ci3\.googleusercontent\.com\/proxy\/.*open/i,
   ];
 
-  // 1. Remove tags ativas e perigosas (<script>, <iframe>, <object>, <embed>, <form>, <base>)
-  let clean = rawHtml
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
-    .replace(/<embed\b[^>]*>/gi, '')
-    .replace(/<form\b[^<]*(?:(?!<\/form>)<[^<]*)*<\/form>/gi, '')
-    .replace(/<base\b[^>]*>/gi, '');
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(rawHtml, 'text/html');
 
-  // 2. Remove todos os event handlers inline (onclick, onerror, onload, etc.)
-  clean = clean.replace(/\s+on[a-zA-Z]+\s*=\s*(["'][^"']*["']|[^\s>]+)/gi, '');
-
-  // 3. Neutraliza URLs de execução javascript: e vbscript:
-  clean = clean.replace(/href\s*=\s*(["'])\s*(?:javascript|vbscript):[^"']*\1/gi, 'href="#"');
-  clean = clean.replace(/src\s*=\s*(["'])\s*(?:javascript|vbscript):[^"']*\1/gi, 'src=""');
-
-  // 4. Bloqueia pixels de rastreio de abertura
-  clean = clean.replace(/<img\s+([^>]*?)>/gi, (match, attrs) => {
-    const isTracker = trackerPatterns.some((pattern) => pattern.test(attrs));
-    if (isTracker) {
-      count++;
-      return '<!-- Corvo: rastreador de abertura bloqueado -->';
+    // 1. Remove tags ativas e perigosas da árvore DOM
+    const dangerousTags = ['script', 'iframe', 'object', 'embed', 'form', 'base', 'link', 'meta', 'applet'];
+    for (const tag of dangerousTags) {
+      const elements = doc.querySelectorAll(tag);
+      elements.forEach((el) => el.parentNode?.removeChild(el));
     }
-    return match;
-  });
 
-  return { cleanHtml: clean, blockedTrackers: count };
+    // 2. Itera todos os elementos restantes para limpar eventos inline e URLs perigosas
+    const all = doc.querySelectorAll('*');
+    for (let i = 0; i < all.length; i++) {
+      const el = all[i];
+
+      const attrs = el.getAttributeNames();
+      for (const attr of attrs) {
+        if (attr.toLowerCase().startsWith('on')) {
+          el.removeAttribute(attr);
+        }
+      }
+
+      if (el.hasAttribute('href')) {
+        const href = (el.getAttribute('href') || '').trim().toLowerCase();
+        if (href.startsWith('javascript:') || href.startsWith('vbscript:') || href.startsWith('data:text/html')) {
+          el.setAttribute('href', '#');
+        }
+      }
+
+      if (el.hasAttribute('src')) {
+        const src = (el.getAttribute('src') || '').trim().toLowerCase();
+        if (src.startsWith('javascript:') || src.startsWith('vbscript:')) {
+          el.removeAttribute('src');
+        }
+      }
+
+      // Força abertura de links de forma segura
+      if (el.tagName.toLowerCase() === 'a') {
+        el.setAttribute('target', '_blank');
+        el.setAttribute('rel', 'noopener noreferrer');
+      }
+
+      // 3. Deteção e neutralização de pixels de rastreio de abertura
+      if (el.tagName.toLowerCase() === 'img') {
+        const src = (el.getAttribute('src') || '').toLowerCase();
+        const width = el.getAttribute('width');
+        const height = el.getAttribute('height');
+        const style = (el.getAttribute('style') || '').toLowerCase();
+
+        const isKnownTracker = trackerPatterns.some((pattern) => pattern.test(src));
+        const isPixel =
+          (width === '1' && height === '1') ||
+          (width === '0' && height === '0') ||
+          style.includes('display: none') ||
+          style.includes('display:none');
+
+        if (isKnownTracker || isPixel) {
+          count++;
+          el.parentNode?.removeChild(el);
+        }
+      }
+    }
+
+    return { cleanHtml: doc.body.innerHTML, blockedTrackers: count };
+  } catch {
+    return { cleanHtml: rawHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ''), blockedTrackers: 0 };
+  }
 }
 
 const SandboxedEmailHtml: React.FC<{
   html: string;
   theme: 'light' | 'dark';
 }> = ({ html, theme }) => {
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const [frameHeight, setFrameHeight] = useState<number>(180);
+
   const docHtml = useMemo(() => {
     const textColor = theme === 'dark' ? '#ecebf0' : '#1d1929';
     const linkColor = theme === 'dark' ? '#bfa7e8' : '#6b46c1';
@@ -117,6 +163,7 @@ const SandboxedEmailHtml: React.FC<{
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base target="_blank">
   <style>
     body {
       margin: 0;
@@ -146,17 +193,40 @@ const SandboxedEmailHtml: React.FC<{
 </html>`;
   }, [html, theme]);
 
+  const updateHeight = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (doc && doc.body) {
+        const height = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight, 60);
+        setFrameHeight(height + 16);
+      }
+    } catch {
+      // Ignora silenciosamente se o motor do browser aplicar restrição de sandbox
+    }
+  }, []);
+
+  useEffect(() => {
+    updateHeight();
+  }, [docHtml, updateHeight]);
+
   return (
     <iframe
+      ref={iframeRef}
       title="Corpo do Email Seguro"
       srcDoc={docHtml}
-      sandbox="allow-popups allow-popups-to-escape-sandbox"
+      sandbox="allow-same-origin allow-popups"
+      onLoad={updateHeight}
       style={{
         width: '100%',
-        minHeight: '220px',
+        height: `${frameHeight}px`,
+        minHeight: '60px',
         border: 'none',
         display: 'block',
         backgroundColor: 'transparent',
+        overflow: 'hidden',
+        transition: 'height 0.12s ease-out',
       }}
     />
   );
@@ -199,6 +269,31 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
   const [customSubject, setCustomSubject] = useState('');
   const draftFileInputRef = useRef<HTMLInputElement | null>(null);
   const [localNotice, setLocalNotice] = useState<string | null>(null);
+
+  // Estado local do rascunho com debounce para 120 FPS sem re-renderizar a árvore inteira da app
+  const [localDraft, setLocalDraft] = useState(draftText);
+  const draftDebounceRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    setLocalDraft(draftText);
+  }, [draftText, thread?.id]);
+
+  const handleDraftInputChange = useCallback((text: string) => {
+    setLocalDraft(text);
+    if (draftDebounceRef.current) {
+      window.clearTimeout(draftDebounceRef.current);
+    }
+    draftDebounceRef.current = window.setTimeout(() => {
+      onDraftChange(text);
+    }, 200);
+  }, [onDraftChange]);
+
+  const handleDraftInputBlur = useCallback(() => {
+    if (draftDebounceRef.current) {
+      window.clearTimeout(draftDebounceRef.current);
+    }
+    onDraftChange(localDraft);
+  }, [localDraft, onDraftChange]);
 
   const handleExportEml = async () => {
     if (!thread) return;
@@ -297,9 +392,9 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
     action: 'organize_and_correct' | 'formal' | 'short' | 'translate',
     targetLang?: string
   ) => {
-    if (!draftText.trim() || isAiRevising) return;
+    if (!localDraft.trim() || isAiRevising) return;
     setAiMenuOpen(false);
-    setPreviousDraftForUndo(draftText);
+    setPreviousDraftForUndo(localDraft);
     setIsAiRevising(true);
     setAiNotice(
       action === 'organize_and_correct'
@@ -318,7 +413,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
 
     try {
       const res = await rewriteTextWithAi({
-        text: draftText,
+        text: localDraft,
         action,
         recipient,
         targetLang,
@@ -970,11 +1065,11 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                     style={{
                       fontSize: '11px',
                       padding: '3px 8px',
-                      color: !draftText.trim() ? 'var(--faint)' : 'var(--acc, #7567a3)',
+                      color: !localDraft.trim() ? 'var(--faint)' : 'var(--acc, #7567a3)',
                     }}
-                    disabled={!draftText.trim() || isAiRevising}
+                    disabled={!localDraft.trim() || isAiRevising}
                     onClick={() => setAiMenuOpen((prev) => !prev)}
-                    title={!draftText.trim() ? 'Escreve algo para usar o Assistente de IA' : 'Organizar texto, tirar erros ou traduzir com o Motor de IA'}
+                    title={!localDraft.trim() ? 'Escreve algo para usar o Assistente de IA' : 'Organizar texto, tirar erros ou traduzir com o Motor de IA'}
                   >
                     <IconSparkles size={12} />
                     <span>{isAiRevising ? 'A processar...' : 'Rever com IA'}</span>
@@ -1146,7 +1241,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                   </button>
                 )}
 
-                {draftText && (
+                {localDraft && (
                   <button
                     type="button"
                     className="tinta-btn-discard"
@@ -1229,8 +1324,9 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                   ? `Escreve uma resposta para ${senderName} ou usa o Assistente de IA lateral (⌘J)…`
                   : 'Escreve a tua mensagem ou usa o Assistente de IA lateral (⌘J)…'
               }
-              value={draftText}
-              onChange={(e) => onDraftChange(e.target.value)}
+              value={localDraft}
+              onChange={(e) => handleDraftInputChange(e.target.value)}
+              onBlur={handleDraftInputBlur}
             />
 
             {attachments.length > 0 && (
@@ -1281,8 +1377,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                   <button
                     type="button"
                     className="tinta-btn-secondary"
-                    disabled={!draftText.trim() || isSendingEmail}
-                    style={{ opacity: draftText.trim() && !isSendingEmail ? 1 : 0.45 }}
+                    disabled={!localDraft.trim() || isSendingEmail}
+                    style={{ opacity: localDraft.trim() && !isSendingEmail ? 1 : 0.45 }}
                     onClick={() => {
                       void onSendEmail('new', customRecipient || senderEmail, customSubject || thread.subject);
                     }}
@@ -1294,8 +1390,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                   <button
                     type="button"
                     className="tinta-btn-secondary"
-                    disabled={!draftText.trim() || isSendingEmail}
-                    style={{ opacity: draftText.trim() && !isSendingEmail ? 1 : 0.45 }}
+                    disabled={!localDraft.trim() || isSendingEmail}
+                    style={{ opacity: localDraft.trim() && !isSendingEmail ? 1 : 0.45 }}
                     onClick={() => {
                       void onSendEmail('reply');
                     }}
@@ -1309,9 +1405,9 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                 <button
                   type="button"
                   className="tinta-btn-primary"
-                  disabled={!draftText.trim() || isSendingEmail}
+                  disabled={!localDraft.trim() || isSendingEmail}
                   style={{
-                    opacity: draftText.trim() && !isSendingEmail ? 1 : 0.45,
+                    opacity: localDraft.trim() && !isSendingEmail ? 1 : 0.45,
                     minWidth: '150px',
                     display: 'flex',
                     alignItems: 'center',

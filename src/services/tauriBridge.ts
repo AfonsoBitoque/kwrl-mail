@@ -11,6 +11,7 @@ import {
   InferenceCompleted,
   KnownContact,
   LocalModelStatus,
+  MutationResult,
   SyncReport,
   ThreadListItem,
   ThreadOpenPayload,
@@ -248,8 +249,8 @@ export async function markThreadsReadStatus(
   accountEmail: string,
   threadIds: string[],
   read: boolean
-): Promise<void> {
-  return invoke<void>('mark_threads_read_status', {
+): Promise<MutationResult> {
+  return invoke<MutationResult>('mark_threads_read_status', {
     accountEmail,
     threadIds,
     read,
@@ -259,8 +260,8 @@ export async function markThreadsReadStatus(
 export async function archiveThreads(
   accountEmail: string,
   threadIds: string[]
-): Promise<void> {
-  return invoke<void>('archive_threads', {
+): Promise<MutationResult> {
+  return invoke<MutationResult>('archive_threads', {
     accountEmail,
     threadIds,
   });
@@ -269,8 +270,8 @@ export async function archiveThreads(
 export async function unarchiveThreads(
   accountEmail: string,
   threadIds: string[]
-): Promise<void> {
-  return invoke<void>('unarchive_threads', {
+): Promise<MutationResult> {
+  return invoke<MutationResult>('unarchive_threads', {
     accountEmail,
     threadIds,
   });
@@ -279,8 +280,8 @@ export async function unarchiveThreads(
 export async function trashThreads(
   accountEmail: string,
   threadIds: string[]
-): Promise<void> {
-  return invoke<void>('trash_threads', {
+): Promise<MutationResult> {
+  return invoke<MutationResult>('trash_threads', {
     accountEmail,
     threadIds,
   });
@@ -289,8 +290,8 @@ export async function trashThreads(
 export async function untrashThreads(
   accountEmail: string,
   threadIds: string[]
-): Promise<void> {
-  return invoke<void>('untrash_threads', {
+): Promise<MutationResult> {
+  return invoke<MutationResult>('untrash_threads', {
     accountEmail,
     threadIds,
   });
@@ -300,8 +301,8 @@ export async function markThreadsSpam(
   accountEmail: string,
   threadIds: string[],
   isSpam: boolean
-): Promise<void> {
-  return invoke<void>('mark_threads_spam', {
+): Promise<MutationResult> {
+  return invoke<MutationResult>('mark_threads_spam', {
     accountEmail,
     threadIds,
     isSpam,
@@ -312,8 +313,8 @@ export async function starThread(
   accountEmail: string,
   threadId: string,
   starred: boolean
-): Promise<void> {
-  return invoke<void>('star_thread', {
+): Promise<MutationResult> {
+  return invoke<MutationResult>('star_thread', {
     accountEmail,
     threadId,
     starred,
@@ -323,8 +324,8 @@ export async function starThread(
 export async function deleteThreadsPermanently(
   accountEmail: string,
   threadIds: string[]
-): Promise<void> {
-  return invoke<void>('delete_threads_permanently', {
+): Promise<MutationResult> {
+  return invoke<MutationResult>('delete_threads_permanently', {
     accountEmail,
     threadIds,
   });

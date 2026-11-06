@@ -104,43 +104,6 @@ export const App: React.FC = () => {
   } | null>(null);
   const [selectedThreadIds, setSelectedThreadIds] = useState<Set<string>>(new Set());
 
-  // Conjuntos locais para marcadas, arquivo, reciclagem e lixo
-  const [starredThreadIds, setStarredThreadIds] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem('tinta-starred-ids');
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch {
-      return new Set();
-    }
-  });
-
-  const [archivedThreadIds, setArchivedThreadIds] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem('tinta-archived-ids');
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch {
-      return new Set();
-    }
-  });
-
-  const [trashThreadIds, setTrashThreadIds] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem('tinta-trash-ids');
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch {
-      return new Set();
-    }
-  });
-
-  const [spamThreadIds, setSpamThreadIds] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem('tinta-spam-ids');
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch {
-      return new Set();
-    }
-  });
-
   // Aviso de anulação flutuante (6s)
   const [undoToast, setUndoToast] = useState<{
     text: string;
@@ -159,6 +122,15 @@ export const App: React.FC = () => {
   const [availableModels, setAvailableModels] = useState<DiscoveredModel[]>([]);
 
   const [threads, setThreads] = useState<ThreadListItem[]>([]);
+
+  // Projeção fiel das conversas com estrela vinda do SQLite/Gmail
+  const starredThreadIds = useMemo(() => {
+    const set = new Set<string>();
+    for (let i = 0; i < threads.length; i++) {
+      if (threads[i].isStarred) set.add(threads[i].id);
+    }
+    return set;
+  }, [threads]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [openedThread, setOpenedThread] = useState<ThreadDetail | null>(null);
 
@@ -186,23 +158,6 @@ export const App: React.FC = () => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('tinta-theme', theme);
   }, [theme]);
-
-  // Persiste marcadas, arquivo e lixo localmente
-  useEffect(() => {
-    localStorage.setItem('tinta-starred-ids', JSON.stringify(Array.from(starredThreadIds)));
-  }, [starredThreadIds]);
-
-  useEffect(() => {
-    localStorage.setItem('tinta-archived-ids', JSON.stringify(Array.from(archivedThreadIds)));
-  }, [archivedThreadIds]);
-
-  useEffect(() => {
-    localStorage.setItem('tinta-trash-ids', JSON.stringify(Array.from(trashThreadIds)));
-  }, [trashThreadIds]);
-
-  useEffect(() => {
-    localStorage.setItem('tinta-spam-ids', JSON.stringify(Array.from(spamThreadIds)));
-  }, [spamThreadIds]);
 
   // Escuta erros de sincronização e autenticação do Gmail em segundo plano
   useEffect(() => {
@@ -348,13 +303,12 @@ export const App: React.FC = () => {
 
     for (let i = 0; i < threads.length; i++) {
       const t = threads[i];
-      const isArchived = archivedThreadIds.has(t.id);
-      const isTrashed = trashThreadIds.has(t.id);
-      const isSpam = spamThreadIds.has(t.id);
-      const isStarred = starredThreadIds.has(t.id);
-      const hasDraft = Boolean(draftsByThread[t.id]?.trim());
-      const fromLower = t.fromEmail.toLowerCase();
-      const isSent = userEmails.has(fromLower) || userEmailsArr.some((em) => fromLower.includes(em));
+      const isArchived = !t.isInbox && !t.isTrash && !t.isSpam;
+      const isTrashed = Boolean(t.isTrash);
+      const isSpam = Boolean(t.isSpam);
+      const isStarred = Boolean(t.isStarred);
+      const hasDraft = Boolean(draftsByThread[t.id]?.trim() || t.isDraft);
+      const isSent = Boolean(t.isSent) || userEmails.has(t.fromEmail.toLowerCase()) || userEmailsArr.some((em) => t.fromEmail.toLowerCase().includes(em));
 
       if (isStarred && !isTrashed) counts.starred += 1;
       if (hasDraft && !isTrashed) counts.drafts += 1;
@@ -380,7 +334,7 @@ export const App: React.FC = () => {
     }
 
     return { boxCounts: counts, accountUnreadCounts: accCounts, customBoxCounts: cboxCounts };
-  }, [threads, archivedThreadIds, trashThreadIds, spamThreadIds, starredThreadIds, draftsByThread, accounts, customMailboxes]);
+  }, [threads, draftsByThread, accounts, customMailboxes]);
 
   // Pesquisa Global Instantânea no SQLite com FTS5 e BM25 com proteção anti-corrida
   const searchSeqRef = useRef(0);
@@ -412,19 +366,16 @@ export const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchQuery, activeBoxId, tauriRuntime]);
 
-  // Filtra as mensagens pertencentes à caixa ativa na Sidebar
+  // Filtra as mensagens pertencentes à caixa ativa na Sidebar — respeita a caixa mesmo com FTS5
   const mailboxThreads = useMemo(() => {
-    if (ftsResults !== null) {
-      return ftsResults;
-    }
-
+    const sourceThreads = ftsResults !== null ? ftsResults : threads;
     const userEmails = new Set(accounts.map((a) => a.email.toLowerCase()));
 
     if (activeBoxId.startsWith('account:')) {
       const targetEmail = activeBoxId.replace('account:', '').toLowerCase();
-      return threads.filter((t) => {
+      return sourceThreads.filter((t) => {
         const matchesAccount = (t.accountEmail || '').toLowerCase() === targetEmail;
-        return matchesAccount && !archivedThreadIds.has(t.id) && !trashThreadIds.has(t.id) && !spamThreadIds.has(t.id);
+        return matchesAccount && t.isInbox && !t.isTrash && !t.isSpam;
       });
     }
 
@@ -433,26 +384,26 @@ export const App: React.FC = () => {
       const customBox = customMailboxes.find((b) => b.id === customId);
       if (!customBox) return [];
       const targetEmails = new Set(customBox.accountEmails.map((e) => e.toLowerCase()));
-      return threads.filter((t) => {
+      return sourceThreads.filter((t) => {
         const matchesAccount = Boolean(t.accountEmail && targetEmails.has(t.accountEmail.toLowerCase()));
-        return matchesAccount && !archivedThreadIds.has(t.id) && !trashThreadIds.has(t.id) && !spamThreadIds.has(t.id);
+        return matchesAccount && t.isInbox && !t.isTrash && !t.isSpam;
       });
     }
 
-    return threads.filter((t) => {
-      const isArchived = archivedThreadIds.has(t.id);
-      const isTrashed = trashThreadIds.has(t.id);
-      const isSpam = spamThreadIds.has(t.id);
-      const isStarred = starredThreadIds.has(t.id);
+    return sourceThreads.filter((t) => {
+      const isArchived = !t.isInbox && !t.isTrash && !t.isSpam;
+      const isTrashed = Boolean(t.isTrash);
+      const isSpam = Boolean(t.isSpam);
+      const isStarred = Boolean(t.isStarred);
 
       switch (activeBoxId) {
         case 'starred':
           return isStarred && !isTrashed;
         case 'drafts':
-          return Boolean(draftsByThread[t.id]?.trim()) && !isTrashed;
+          return Boolean(draftsByThread[t.id]?.trim() || t.isDraft) && !isTrashed;
         case 'sent': {
           const fromLower = t.fromEmail.toLowerCase();
-          const isSent = userEmails.has(fromLower);
+          const isSent = Boolean(t.isSent) || userEmails.has(fromLower);
           return isSent && !isTrashed;
         }
         case 'archive':
@@ -463,10 +414,10 @@ export const App: React.FC = () => {
           return isTrashed;
         case 'inbox':
         default:
-          return !isArchived && !isTrashed && !isSpam;
+          return Boolean(t.isInbox) && !isTrashed && !isSpam;
       }
     });
-  }, [threads, activeBoxId, archivedThreadIds, trashThreadIds, spamThreadIds, starredThreadIds, draftsByThread, accounts, customMailboxes, ftsResults]);
+  }, [threads, activeBoxId, draftsByThread, accounts, customMailboxes, ftsResults]);
 
   const activeBoxTitle = useMemo(() => {
     if (activeBoxId.startsWith('account:')) {
@@ -579,77 +530,66 @@ export const App: React.FC = () => {
     [threads, accounts]
   );
 
-  const handleArchiveThread = () => {
+  const handleArchiveThread = async () => {
     if (!selectedThreadId) return;
     const tid = selectedThreadId;
     const currentIdx = currentThreadIndex;
-    const accountEmail = openedThread?.accountEmail || accounts[0]?.email || '';
+    const current = threads.find((t) => t.id === tid);
+    const accountEmail = current?.accountEmail || openedThread?.accountEmail || accounts[0]?.email || '';
 
-    setArchivedThreadIds((prev) => new Set([...prev, tid]));
-    if (tauriRuntime && accountEmail) {
-      void archiveThreads(accountEmail, [tid]);
-    }
+    // Atualização otimista no estado projetado
+    setThreads((prev) =>
+      prev.map((t) => (t.id === tid ? { ...t, isInbox: false } : t))
+    );
 
-    // Seleciona a próxima mensagem
+    // Seleciona a próxima conversa visível
     const nextThreads = mailboxThreads.filter((t) => t.id !== tid);
     if (nextThreads.length > 0) {
       const nextIdx = Math.min(currentIdx, nextThreads.length - 1);
       void handleSelectThread(nextThreads[nextIdx].id);
     }
 
-    triggerUndoNotice('Mensagem arquivada', () => {
-      setArchivedThreadIds((prev) => {
-        const next = new Set(prev);
-        next.delete(tid);
-        return next;
-      });
+    if (tauriRuntime && accountEmail) {
+      try {
+        const res = await archiveThreads(accountEmail, [tid]);
+        if (res.failedIds.includes(tid)) {
+          // Reverte se a API do Gmail rejeitou
+          setThreads((prev) =>
+            prev.map((t) => (t.id === tid ? { ...t, isInbox: true } : t))
+          );
+          triggerUndoNotice(res.error || 'Não foi possível arquivar a conversa no Gmail.', () => {});
+          return;
+        }
+      } catch (err) {
+        setThreads((prev) =>
+          prev.map((t) => (t.id === tid ? { ...t, isInbox: true } : t))
+        );
+        triggerUndoNotice('Falha de ligação ao arquivar conversa.', () => {});
+        return;
+      }
+    }
+
+    triggerUndoNotice('Conversa arquivada', async () => {
+      setThreads((prev) =>
+        prev.map((t) => (t.id === tid ? { ...t, isInbox: true } : t))
+      );
       if (tauriRuntime && accountEmail) {
-        void unarchiveThreads(accountEmail, [tid]);
+        await unarchiveThreads(accountEmail, [tid]);
       }
       void handleSelectThread(tid);
     });
   };
 
-  const handleTrashThread = () => {
+  const handleTrashThread = async () => {
     if (!selectedThreadId) return;
     const tid = selectedThreadId;
     const currentIdx = currentThreadIndex;
-    const accountEmail = openedThread?.accountEmail || accounts[0]?.email || '';
+    const current = threads.find((t) => t.id === tid);
+    const accountEmail = current?.accountEmail || openedThread?.accountEmail || accounts[0]?.email || '';
 
-    setTrashThreadIds((prev) => new Set([...prev, tid]));
-    if (tauriRuntime && accountEmail) {
-      void trashThreads(accountEmail, [tid]);
-    }
-
-    const nextThreads = mailboxThreads.filter((t) => t.id !== tid);
-    if (nextThreads.length > 0) {
-      const nextIdx = Math.min(currentIdx, nextThreads.length - 1);
-      void handleSelectThread(nextThreads[nextIdx].id);
-    }
-
-    triggerUndoNotice('Mensagem movida para a reciclagem', () => {
-      setTrashThreadIds((prev) => {
-        const next = new Set(prev);
-        next.delete(tid);
-        return next;
-      });
-      if (tauriRuntime && accountEmail) {
-        void untrashThreads(accountEmail, [tid]);
-      }
-      void handleSelectThread(tid);
-    });
-  };
-
-  const handleSpamThread = () => {
-    if (!selectedThreadId) return;
-    const tid = selectedThreadId;
-    const currentIdx = currentThreadIndex;
-    const accountEmail = openedThread?.accountEmail || accounts[0]?.email || '';
-
-    setSpamThreadIds((prev) => new Set([...prev, tid]));
-    if (tauriRuntime && accountEmail) {
-      void markThreadsSpam(accountEmail, [tid], true);
-    }
+    setThreads((prev) =>
+      prev.map((t) => (t.id === tid ? { ...t, isTrash: true, isInbox: false } : t))
+    );
 
     const nextThreads = mailboxThreads.filter((t) => t.id !== tid);
     if (nextThreads.length > 0) {
@@ -657,34 +597,110 @@ export const App: React.FC = () => {
       void handleSelectThread(nextThreads[nextIdx].id);
     }
 
-    triggerUndoNotice('Mensagem marcada como spam', () => {
-      setSpamThreadIds((prev) => {
-        const next = new Set(prev);
-        next.delete(tid);
-        return next;
-      });
+    if (tauriRuntime && accountEmail) {
+      try {
+        const res = await trashThreads(accountEmail, [tid]);
+        if (res.failedIds.includes(tid)) {
+          setThreads((prev) =>
+            prev.map((t) => (t.id === tid ? { ...t, isTrash: false, isInbox: true } : t))
+          );
+          triggerUndoNotice(res.error || 'Não foi possível mover para a reciclagem.', () => {});
+          return;
+        }
+      } catch (err) {
+        setThreads((prev) =>
+          prev.map((t) => (t.id === tid ? { ...t, isTrash: false, isInbox: true } : t))
+        );
+        triggerUndoNotice('Falha de ligação ao mover para a reciclagem.', () => {});
+        return;
+      }
+    }
+
+    triggerUndoNotice('Conversa movida para a reciclagem', async () => {
+      setThreads((prev) =>
+        prev.map((t) => (t.id === tid ? { ...t, isTrash: false, isInbox: true } : t))
+      );
       if (tauriRuntime && accountEmail) {
-        void markThreadsSpam(accountEmail, [tid], false);
+        await untrashThreads(accountEmail, [tid]);
       }
       void handleSelectThread(tid);
     });
   };
 
-  const handleToggleStar = () => {
+  const handleSpamThread = async () => {
     if (!selectedThreadId) return;
     const tid = selectedThreadId;
-    const willStar = !starredThreadIds.has(tid);
-    const accountEmail = openedThread?.accountEmail || accounts[0]?.email || '';
+    const currentIdx = currentThreadIndex;
+    const current = threads.find((t) => t.id === tid);
+    const accountEmail = current?.accountEmail || openedThread?.accountEmail || accounts[0]?.email || '';
 
-    setStarredThreadIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(tid)) next.delete(tid);
-      else next.add(tid);
-      return next;
-    });
+    setThreads((prev) =>
+      prev.map((t) => (t.id === tid ? { ...t, isSpam: true, isInbox: false } : t))
+    );
+
+    const nextThreads = mailboxThreads.filter((t) => t.id !== tid);
+    if (nextThreads.length > 0) {
+      const nextIdx = Math.min(currentIdx, nextThreads.length - 1);
+      void handleSelectThread(nextThreads[nextIdx].id);
+    }
 
     if (tauriRuntime && accountEmail) {
-      void starThread(accountEmail, tid, willStar);
+      try {
+        const res = await markThreadsSpam(accountEmail, [tid], true);
+        if (res.failedIds.includes(tid)) {
+          setThreads((prev) =>
+            prev.map((t) => (t.id === tid ? { ...t, isSpam: false, isInbox: true } : t))
+          );
+          triggerUndoNotice(res.error || 'Não foi possível mover para o Spam.', () => {});
+          return;
+        }
+      } catch (err) {
+        setThreads((prev) =>
+          prev.map((t) => (t.id === tid ? { ...t, isSpam: false, isInbox: true } : t))
+        );
+        triggerUndoNotice('Falha de ligação ao marcar spam.', () => {});
+        return;
+      }
+    }
+
+    triggerUndoNotice('Conversa movida para o Spam', async () => {
+      setThreads((prev) =>
+        prev.map((t) => (t.id === tid ? { ...t, isSpam: false, isInbox: true } : t))
+      );
+      if (tauriRuntime && accountEmail) {
+        await markThreadsSpam(accountEmail, [tid], false);
+      }
+      void handleSelectThread(tid);
+    });
+  };
+
+  const handleToggleStar = async () => {
+    if (!selectedThreadId) return;
+    const tid = selectedThreadId;
+    const current = threads.find((t) => t.id === tid);
+    const willStar = !current?.isStarred;
+    const accountEmail = current?.accountEmail || openedThread?.accountEmail || accounts[0]?.email || '';
+
+    // Atualização otimista
+    setThreads((prev) =>
+      prev.map((t) => (t.id === tid ? { ...t, isStarred: willStar } : t))
+    );
+
+    if (tauriRuntime && accountEmail) {
+      try {
+        const res = await starThread(accountEmail, tid, willStar);
+        if (res.failedIds.includes(tid)) {
+          setThreads((prev) =>
+            prev.map((t) => (t.id === tid ? { ...t, isStarred: !willStar } : t))
+          );
+          triggerUndoNotice(res.error || 'Falha ao atualizar estrela no Gmail', () => {});
+        }
+      } catch (err) {
+        setThreads((prev) =>
+          prev.map((t) => (t.id === tid ? { ...t, isStarred: !willStar } : t))
+        );
+        triggerUndoNotice('Erro de ligação ao atualizar estrela', () => {});
+      }
     }
   };
 
@@ -701,73 +717,123 @@ export const App: React.FC = () => {
     setSelectedThreadIds(new Set());
   }, []);
 
-  const handleBulkArchive = () => {
+  const handleBulkArchive = async () => {
     if (selectedThreadIds.size === 0) return;
     const ids = Array.from(selectedThreadIds);
-    setArchivedThreadIds((prev) => new Set([...prev, ...ids]));
     setSelectedThreadIds(new Set());
 
-    if (tauriRuntime) {
-      const grouped = groupThreadIdsByAccount(ids);
-      grouped.forEach((accIds, accEmail) => {
-        void archiveThreads(accEmail, accIds);
-      });
-    }
-    triggerUndoNotice(`${ids.length} conversas arquivadas`, () => {
-      setArchivedThreadIds((prev) => {
-        const next = new Set(prev);
-        ids.forEach((id) => next.delete(id));
-        return next;
-      });
-      if (tauriRuntime) {
-        const grouped = groupThreadIdsByAccount(ids);
-        grouped.forEach((accIds, accEmail) => {
-          void unarchiveThreads(accEmail, accIds);
-        });
-      }
-    });
-  };
-
-  const handleBulkTrash = () => {
-    if (selectedThreadIds.size === 0) return;
-    const ids = Array.from(selectedThreadIds);
-    setTrashThreadIds((prev) => new Set([...prev, ...ids]));
-    setSelectedThreadIds(new Set());
-
-    if (tauriRuntime) {
-      const grouped = groupThreadIdsByAccount(ids);
-      grouped.forEach((accIds, accEmail) => {
-        void trashThreads(accEmail, accIds);
-      });
-    }
-    triggerUndoNotice(`${ids.length} conversas movidas para a reciclagem`, () => {
-      setTrashThreadIds((prev) => {
-        const next = new Set(prev);
-        ids.forEach((id) => next.delete(id));
-        return next;
-      });
-      if (tauriRuntime) {
-        const grouped = groupThreadIdsByAccount(ids);
-        grouped.forEach((accIds, accEmail) => {
-          void untrashThreads(accEmail, accIds);
-        });
-      }
-    });
-  };
-
-  const handleBulkMarkRead = (read: boolean) => {
-    if (selectedThreadIds.size === 0) return;
-    const ids = Array.from(selectedThreadIds);
+    // Otimista
     setThreads((prev) =>
-      prev.map((t) => (selectedThreadIds.has(t.id) ? { ...t, unread: !read } : t))
+      prev.map((t) => (ids.includes(t.id) ? { ...t, isInbox: false } : t))
     );
-    setSelectedThreadIds(new Set());
+
     if (tauriRuntime) {
       const grouped = groupThreadIdsByAccount(ids);
-      grouped.forEach((accIds, accEmail) => {
-        void markThreadsReadStatus(accEmail, accIds, read);
-      });
+      const failedAll: string[] = [];
+      for (const [accEmail, accIds] of grouped.entries()) {
+        try {
+          const res = await archiveThreads(accEmail, accIds);
+          if (res.failedIds.length > 0) {
+            failedAll.push(...res.failedIds);
+          }
+        } catch {
+          failedAll.push(...accIds);
+        }
+      }
+      if (failedAll.length > 0) {
+        setThreads((prev) =>
+          prev.map((t) => (failedAll.includes(t.id) ? { ...t, isInbox: true } : t))
+        );
+        triggerUndoNotice(`${failedAll.length} conversa(s) não puderam ser arquivadas remotamente.`, () => {});
+      }
     }
+
+    triggerUndoNotice(`${ids.length} conversas arquivadas`, async () => {
+      setThreads((prev) =>
+        prev.map((t) => (ids.includes(t.id) ? { ...t, isInbox: true } : t))
+      );
+      if (tauriRuntime) {
+        const grouped = groupThreadIdsByAccount(ids);
+        for (const [accEmail, accIds] of grouped.entries()) {
+          await unarchiveThreads(accEmail, accIds);
+        }
+      }
+    });
+  };
+
+  const handleBulkTrash = async () => {
+    if (selectedThreadIds.size === 0) return;
+    const ids = Array.from(selectedThreadIds);
+    setSelectedThreadIds(new Set());
+
+    setThreads((prev) =>
+      prev.map((t) => (ids.includes(t.id) ? { ...t, isTrash: true, isInbox: false } : t))
+    );
+
+    if (tauriRuntime) {
+      const grouped = groupThreadIdsByAccount(ids);
+      const failedAll: string[] = [];
+      for (const [accEmail, accIds] of grouped.entries()) {
+        try {
+          const res = await trashThreads(accEmail, accIds);
+          if (res.failedIds.length > 0) {
+            failedAll.push(...res.failedIds);
+          }
+        } catch {
+          failedAll.push(...accIds);
+        }
+      }
+      if (failedAll.length > 0) {
+        setThreads((prev) =>
+          prev.map((t) => (failedAll.includes(t.id) ? { ...t, isTrash: false, isInbox: true } : t))
+        );
+        triggerUndoNotice(`${failedAll.length} conversa(s) não puderam ser movidas para a reciclagem.`, () => {});
+      }
+    }
+
+    triggerUndoNotice(`${ids.length} conversas movidas para a reciclagem`, async () => {
+      setThreads((prev) =>
+        prev.map((t) => (ids.includes(t.id) ? { ...t, isTrash: false, isInbox: true } : t))
+      );
+      if (tauriRuntime) {
+        const grouped = groupThreadIdsByAccount(ids);
+        for (const [accEmail, accIds] of grouped.entries()) {
+          await untrashThreads(accEmail, accIds);
+        }
+      }
+    });
+  };
+
+  const handleBulkMarkRead = async (read: boolean) => {
+    if (selectedThreadIds.size === 0) return;
+    const ids = Array.from(selectedThreadIds);
+    setSelectedThreadIds(new Set());
+
+    setThreads((prev) =>
+      prev.map((t) => (ids.includes(t.id) ? { ...t, unread: !read } : t))
+    );
+
+    if (tauriRuntime) {
+      const grouped = groupThreadIdsByAccount(ids);
+      const failedAll: string[] = [];
+      for (const [accEmail, accIds] of grouped.entries()) {
+        try {
+          const res = await markThreadsReadStatus(accEmail, accIds, read);
+          if (res.failedIds.length > 0) {
+            failedAll.push(...res.failedIds);
+          }
+        } catch {
+          failedAll.push(...accIds);
+        }
+      }
+      if (failedAll.length > 0) {
+        setThreads((prev) =>
+          prev.map((t) => (failedAll.includes(t.id) ? { ...t, unread: read } : t))
+        );
+        triggerUndoNotice(`${failedAll.length} conversa(s) não puderam ser atualizadas no Gmail.`, () => {});
+      }
+    }
+
     triggerUndoNotice(`${ids.length} conversas marcadas como ${read ? 'lidas' : 'não lidas'}`, () => {});
   };
 
