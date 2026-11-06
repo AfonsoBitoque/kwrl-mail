@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Yoot-Mail",
+  "productName": "Corvo",
   "version": "0.2.0",
   "identifier": "pt.corvo.mail",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Yoot-Mail",
+        "title": "Corvo",
         "width": 1380,
         "height": 860,
         "minWidth": 960,

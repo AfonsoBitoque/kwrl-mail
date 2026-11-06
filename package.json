@@ -12,7 +12,10 @@
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --lib",
     "tauri": "tauri",
     "tauri:dev": "cargo build --manifest-path src-tauri/Cargo.toml --bin corvo-llm-worker && tauri dev",
-    "tauri:build": "cargo build --release --manifest-path src-tauri/Cargo.toml --bin corvo-llm-worker && tauri build --bundles app && cp src-tauri/target/release/corvo-llm-worker src-tauri/target/release/bundle/macos/Corvo.app/Contents/MacOS/corvo-llm-worker"
+    "tauri:build": "cargo build --release --manifest-path src-tauri/Cargo.toml --bin corvo-llm-worker && tauri build",
+    "tauri:build:mac": "cargo build --release --manifest-path src-tauri/Cargo.toml --bin corvo-llm-worker && tauri build --bundles app && cp src-tauri/target/release/corvo-llm-worker src-tauri/target/release/bundle/macos/Corvo.app/Contents/MacOS/corvo-llm-worker",
+    "install:arch": "bash scripts/install-arch.sh",
+    "install:mac": "bash scripts/install-mac.sh"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",

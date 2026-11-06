@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Corvo
+GenericName=Cliente de E-mail Calmo
+Comment=Cliente de e-mail calmo e seguro com IA local llama.cpp e Gmail OAuth2
+Exec=corvo-desktop %u
+Icon=corvo
+Terminal=false
+Type=Application
+Categories=Office;Network;Email;
+MimeType=x-scheme-handler/mailto;
+StartupWMClass=corvo-desktop
+Keywords=email;gmail;mail;corvo;ai;llama;
+X-Purism-FormFactor=Workstation;Mobile;

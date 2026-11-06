@@ -6,26 +6,48 @@ Zero dados estáticos ou mocks: toda a sincronização ocorre diretamente contra
 
 ---
 
-## 1. Pré-requisitos e Compilação
+## 1. Instalação Rápida por Sistema Operativo
+
+O Corvo dispõe de instaladores automatizados de um só comando para **Arch Linux**, **macOS** e **Windows**. Consulte o [Guia Completo de Instalação (INSTALL.md)](INSTALL.md).
+
+### 🐧 Arch Linux (e derivados: Manjaro, EndeavourOS)
+```bash
+./scripts/install-arch.sh
+# ou via PKGBUILD nativo:
+cd packaging/arch && makepkg -si
+```
+
+### 🍏 macOS (Apple Silicon & Intel)
+```bash
+./scripts/install-mac.sh
+```
+
+### 🪟 Windows (10 e 11)
+No PowerShell:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-windows.ps1
+```
+
+---
+
+## 2. Compilação Manual e Testes
 
 - **macOS (Apple Silicon / Intel)**, Windows ou Linux
-- **Node.js 20+** e **Rust 1.85+** (`cargo`), **CMake** e **Clang** (necessários para compilar `llama-cpp-2`)
+- **Node.js 20+** e **Rust 1.85+** (`cargo`), **CMake** e **Clang / GCC**
 
 ```bash
 # Instalar dependências frontend
 npm install
 
-# Executar suite de testes unitários de segurança e sincronização em Rust (31 testes)
+# Executar suite de testes unitários de segurança e sincronização em Rust (32 testes)
 npm run test:rust
 
 # Executar em modo de desenvolvimento nativo (compila o sidecar + abre a janela Tauri)
 npm run tauri:dev
 
-# Gerar o binário de produção otimizado (LTO, strip=symbols, panic=abort) e bundle Corvo.app
+# Gerar binário de produção otimizado (LTO, strip=symbols, panic=abort)
 npm run tauri:build
 ```
-
-No macOS, o pacote instalável é gerado em `src-tauri/target/release/bundle/macos/Corvo.app` (contendo tanto `corvo-desktop` como o sidecar isolado `corvo-llm-worker` em `Contents/MacOS/`).
 
 ---
 

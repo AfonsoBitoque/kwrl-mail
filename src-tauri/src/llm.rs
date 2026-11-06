@@ -1118,28 +1118,49 @@ pub fn optimal_cpu_threads() -> usize {
 }
 
 fn resolve_worker_binary_path() -> Result<PathBuf, LlmError> {
-    let exe = std::env::current_exe().map_err(|e| LlmError::WorkerFailure(e.to_string()))?;
-    let dir = exe
-        .parent()
-        .ok_or_else(|| LlmError::WorkerFailure("Diretório do executável indefinido.".into()))?;
     let bin_name = if cfg!(windows) {
         "corvo-llm-worker.exe"
     } else {
         "corvo-llm-worker"
     };
-    let candidate = dir.join(bin_name);
-    if candidate.exists() {
-        return Ok(candidate);
-    }
-    if let Some(parent_dir) = dir.parent() {
-        let parent_candidate = parent_dir.join(bin_name);
-        if parent_candidate.exists() {
-            return Ok(parent_candidate);
+
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            let candidate = dir.join(bin_name);
+            if candidate.exists() {
+                return Ok(candidate);
+            }
+            if let Some(parent_dir) = dir.parent() {
+                let parent_candidate = parent_dir.join(bin_name);
+                if parent_candidate.exists() {
+                    return Ok(parent_candidate);
+                }
+            }
         }
     }
+
+    // Procura em diretórios padrão do sistema operacional (Linux / Unix)
+    #[cfg(unix)]
+    for standard_dir in ["/usr/local/bin", "/usr/bin", "/opt/corvo", "/opt/corvo/bin"] {
+        let p = Path::new(standard_dir).join(bin_name);
+        if p.exists() {
+            return Ok(p);
+        }
+    }
+
+    // Procura no PATH do sistema
+    if let Ok(path_var) = std::env::var("PATH") {
+        for segment in std::env::split_paths(&path_var) {
+            let candidate = segment.join(bin_name);
+            if candidate.exists() {
+                return Ok(candidate);
+            }
+        }
+    }
+
     Err(LlmError::WorkerFailure(format!(
-        "Binário isolado '{}' não encontrado junto ao executável principal.",
-        candidate.display()
+        "Binário isolado '{}' não encontrado junto ao executável principal nem no PATH do sistema.",
+        bin_name
     )))
 }
 

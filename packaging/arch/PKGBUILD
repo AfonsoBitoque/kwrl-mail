@@ -1,0 +1,54 @@
+# Maintainer: Equipa Corvo <dev@corvo.mail>
+pkgname=corvo-desktop
+pkgver=0.2.0
+pkgrel=1
+pkgdesc="Cliente de e-mail calmo e seguro com IA local llama.cpp e Gmail OAuth2"
+arch=('x86_64' 'aarch64')
+url="https://github.com/AfonsoBitoque/yoot-mail"
+license=('MIT')
+depends=(
+    'webkit2gtk-4.1'
+    'gtk3'
+    'cairo'
+    'glib2'
+    'openssl'
+    'gnome-keyring'
+)
+optdepends=(
+    'cuda: Aceleração de inferência por GPU NVIDIA (requer compilação com --features cuda)'
+    'vulkan-icd-loader: Aceleração de inferência por GPU Vulkan (requer compilação com --features vulkan)'
+)
+makedepends=(
+    'rust'
+    'cargo'
+    'nodejs'
+    'npm'
+    'cmake'
+    'gcc'
+)
+source=()
+
+build() {
+    # 1. Compila os assets web de produção com Vite
+    npm install
+    npm run build
+
+    # 2. Compila os binários Rust em release
+    # Nota: para ativar aceleração CUDA passe CARGO_FEATURES="--features cuda"
+    # ou para Vulkan passe CARGO_FEATURES="--features vulkan"
+    cargo build --manifest-path src-tauri/Cargo.toml --release ${CARGO_FEATURES}
+}
+
+package() {
+    # Binários principais (aplicação desktop e processo sidecar isolado llama.cpp)
+    install -Dm755 src-tauri/target/release/corvo-desktop "${pkgdir}/usr/bin/corvo-desktop"
+    install -Dm755 src-tauri/target/release/corvo-llm-worker "${pkgdir}/usr/bin/corvo-llm-worker"
+
+    # Entrada no lançador de aplicações (.desktop)
+    install -Dm644 packaging/linux/corvo.desktop "${pkgdir}/usr/share/applications/corvo.desktop"
+
+    # Ícones da aplicação
+    install -Dm644 src-tauri/icons/32x32.png "${pkgdir}/usr/share/icons/hicolor/32x32/apps/corvo.png"
+    install -Dm644 src-tauri/icons/128x128.png "${pkgdir}/usr/share/icons/hicolor/128x128/apps/corvo.png"
+    install -Dm644 src-tauri/icons/icon.png "${pkgdir}/usr/share/pixmaps/corvo.png"
+}
