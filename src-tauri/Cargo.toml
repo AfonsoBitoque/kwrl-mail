@@ -39,6 +39,7 @@ aho-corasick = "1.1"
 memchr = "2.7"
 bytes = "1"
 mimalloc = { version = "0.1", default-features = false }
+unicode-normalization = "0.1"
 
 # Rede otimizada (§4.1): HTTP/2 + rustls + compressão gzip + connection pooling
 reqwest = { version = "0.12", default-features = false, features = ["json", "gzip", "rustls-tls", "stream"] }

@@ -98,7 +98,7 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
 
   return (
     <aside className="tinta-sidebar" aria-label="Caixas de correio">
-      {/* Topo: Nome da App Yoot-Mail */}
+      {/* Topo: Nome da App Corvo */}
       <div className="tinta-sidebar-header">
         <button
           type="button"
@@ -106,7 +106,7 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
           onClick={() => void onSyncNow()}
           title={isSyncing ? 'A sincronizar...' : 'Clique para sincronizar agora'}
         >
-          <span className="tinta-sidebar-brand">Yoot-Mail</span>
+          <span className="tinta-sidebar-brand">Corvo</span>
           {isSyncing && (
             <span className="tinta-syncing-indicator" title="A sincronizar com o Gmail...">
               •

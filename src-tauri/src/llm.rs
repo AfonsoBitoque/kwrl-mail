@@ -617,6 +617,7 @@ impl LlmSupervisor {
                     tier,
                     &cfg.ollama_model_tag,
                     &prompt,
+                    cfg.context_size,
                     inspection,
                     &mut on_token,
                 )
@@ -806,6 +807,7 @@ REGRAS:\n\
                 action,
                 &cfg.ollama_model_tag,
                 &prompt,
+                cfg.context_size,
                 inspection,
                 &mut on_token,
             )
@@ -857,7 +859,7 @@ REGRAS:\n\
             "cmd": "infer",
             "request_id": request_id,
             "model_path": model_path.to_string_lossy(),
-            "prompt": prompt,
+            "prompt": if system_prompt.is_empty() && user_prompt.is_empty() { prompt } else { "" },
             "system_prompt": system_prompt,
             "user_prompt": user_prompt,
             "n_ctx": n_ctx,
@@ -982,6 +984,7 @@ REGRAS:\n\
         tier: &str,
         model_tag: &str,
         prompt: &str,
+        n_ctx: u32,
         inspection: InjectionInspection,
         on_token: &mut F,
     ) -> Result<InferenceCompleted, LlmError>
@@ -998,7 +1001,7 @@ REGRAS:\n\
                 "raw": true,
                 "stream": true,
                 "options": {
-                    "num_ctx": 4096,
+                    "num_ctx": n_ctx,
                     "num_thread": optimal_cpu_threads(),
                     "temperature": 0.35
                 }

@@ -15,7 +15,7 @@ Zero dados estáticos ou mocks: toda a sincronização ocorre diretamente contra
 # Instalar dependências frontend
 npm install
 
-# Executar suite de testes unitários de segurança e sincronização em Rust (18 testes)
+# Executar suite de testes unitários de segurança e sincronização em Rust (31 testes)
 npm run test:rust
 
 # Executar em modo de desenvolvimento nativo (compila o sidecar + abre a janela Tauri)

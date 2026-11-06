@@ -61,6 +61,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [contacts, setContacts] = useState<KnownContact[]>([]);
   const [activeAutocompleteField, setActiveAutocompleteField] = useState<'to' | 'cc' | 'bcc' | null>(null);
+  const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState<number>(-1);
 
   // Estados do Assistente de IA para organização, correção e tradução
   const [isAiProcessing, setIsAiProcessing] = useState(false);
@@ -187,10 +188,34 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
     chips: string[],
     setChips: React.Dispatch<React.SetStateAction<string[]>>
   ) => {
+    if (activeSuggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedSuggestionIndex((prev) => (prev + 1) % activeSuggestions.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedSuggestionIndex((prev) => (prev <= 0 ? activeSuggestions.length - 1 : prev - 1));
+        return;
+      }
+      if (
+        (e.key === 'Enter' || e.key === 'Tab') &&
+        selectedSuggestionIndex >= 0 &&
+        selectedSuggestionIndex < activeSuggestions.length
+      ) {
+        e.preventDefault();
+        handleAddChip(field, activeSuggestions[selectedSuggestionIndex].email);
+        setSelectedSuggestionIndex(-1);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' || e.key === ',' || e.key === 'Tab') {
       if (currentVal.trim()) {
         e.preventDefault();
         handleAddChip(field, currentVal);
+        setSelectedSuggestionIndex(-1);
       }
     } else if (e.key === 'Backspace' && !currentVal && chips.length > 0) {
       setChips((prev) => prev.slice(0, prev.length - 1));
@@ -568,6 +593,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
             {/* Autocomplete dropdown para Para */}
             {activeAutocompleteField === 'to' && toInput.trim() && (
               <div
+                role="listbox"
                 style={{
                   position: 'absolute',
                   top: '100%',
@@ -582,10 +608,19 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                   overflowY: 'auto',
                 }}
               >
-                {activeSuggestions.map((s) => (
+                {activeSuggestions.map((s, idx) => (
                   <div
                     key={s.email}
+                    role="option"
+                    aria-selected={idx === selectedSuggestionIndex}
+                    tabIndex={0}
                     onClick={() => handleAddChip('to', s.email)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleAddChip('to', s.email);
+                      }
+                    }}
                     style={{
                       padding: '6px 12px',
                       cursor: 'pointer',
@@ -593,9 +628,10 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                       display: 'flex',
                       justifyContent: 'space-between',
                       borderBottom: '1px solid var(--line)',
+                      backgroundColor: idx === selectedSuggestionIndex ? 'var(--hov)' : 'transparent',
                     }}
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = idx === selectedSuggestionIndex ? 'var(--hov)' : 'transparent')}
                   >
                     <span style={{ fontWeight: 500, color: 'var(--ink)' }}>{s.displayName}</span>
                     <span style={{ color: 'var(--mute)' }}>{s.email}</span>
@@ -677,6 +713,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
 
               {activeAutocompleteField === 'cc' && ccInput.trim() && (
                 <div
+                  role="listbox"
                   style={{
                     position: 'absolute',
                     top: '100%',
@@ -691,10 +728,19 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                     overflowY: 'auto',
                   }}
                 >
-                  {activeSuggestions.map((s) => (
+                  {activeSuggestions.map((s, idx) => (
                     <div
                       key={s.email}
+                      role="option"
+                      aria-selected={idx === selectedSuggestionIndex}
+                      tabIndex={0}
                       onClick={() => handleAddChip('cc', s.email)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleAddChip('cc', s.email);
+                        }
+                      }}
                       style={{
                         padding: '6px 12px',
                         cursor: 'pointer',
@@ -702,9 +748,10 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                         display: 'flex',
                         justifyContent: 'space-between',
                         borderBottom: '1px solid var(--line)',
+                        backgroundColor: idx === selectedSuggestionIndex ? 'var(--hov)' : 'transparent',
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = idx === selectedSuggestionIndex ? 'var(--hov)' : 'transparent')}
                     >
                       <span style={{ fontWeight: 500, color: 'var(--ink)' }}>{s.displayName}</span>
                       <span style={{ color: 'var(--mute)' }}>{s.email}</span>
@@ -787,6 +834,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
 
               {activeAutocompleteField === 'bcc' && bccInput.trim() && (
                 <div
+                  role="listbox"
                   style={{
                     position: 'absolute',
                     top: '100%',
@@ -801,10 +849,19 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                     overflowY: 'auto',
                   }}
                 >
-                  {activeSuggestions.map((s) => (
+                  {activeSuggestions.map((s, idx) => (
                     <div
                       key={s.email}
+                      role="option"
+                      aria-selected={idx === selectedSuggestionIndex}
+                      tabIndex={0}
                       onClick={() => handleAddChip('bcc', s.email)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleAddChip('bcc', s.email);
+                        }
+                      }}
                       style={{
                         padding: '6px 12px',
                         cursor: 'pointer',
@@ -812,9 +869,10 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                         display: 'flex',
                         justifyContent: 'space-between',
                         borderBottom: '1px solid var(--line)',
+                        backgroundColor: idx === selectedSuggestionIndex ? 'var(--hov)' : 'transparent',
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = idx === selectedSuggestionIndex ? 'var(--hov)' : 'transparent')}
                     >
                       <span style={{ fontWeight: 500, color: 'var(--ink)' }}>{s.displayName}</span>
                       <span style={{ color: 'var(--mute)' }}>{s.email}</span>

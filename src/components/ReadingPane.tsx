@@ -76,7 +76,24 @@ function sanitizeHtmlAndCountTrackers(rawHtml: string): { cleanHtml: string; blo
     /ci3\.googleusercontent\.com\/proxy\/.*open/i,
   ];
 
-  const clean = rawHtml.replace(/<img\s+([^>]*?)>/gi, (match, attrs) => {
+  // 1. Remove tags ativas e perigosas (<script>, <iframe>, <object>, <embed>, <form>, <base>)
+  let clean = rawHtml
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
+    .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
+    .replace(/<embed\b[^>]*>/gi, '')
+    .replace(/<form\b[^<]*(?:(?!<\/form>)<[^<]*)*<\/form>/gi, '')
+    .replace(/<base\b[^>]*>/gi, '');
+
+  // 2. Remove todos os event handlers inline (onclick, onerror, onload, etc.)
+  clean = clean.replace(/\s+on[a-zA-Z]+\s*=\s*(["'][^"']*["']|[^\s>]+)/gi, '');
+
+  // 3. Neutraliza URLs de execução javascript: e vbscript:
+  clean = clean.replace(/href\s*=\s*(["'])\s*(?:javascript|vbscript):[^"']*\1/gi, 'href="#"');
+  clean = clean.replace(/src\s*=\s*(["'])\s*(?:javascript|vbscript):[^"']*\1/gi, 'src=""');
+
+  // 4. Bloqueia pixels de rastreio de abertura
+  clean = clean.replace(/<img\s+([^>]*?)>/gi, (match, attrs) => {
     const isTracker = trackerPatterns.some((pattern) => pattern.test(attrs));
     if (isTracker) {
       count++;
@@ -88,6 +105,63 @@ function sanitizeHtmlAndCountTrackers(rawHtml: string): { cleanHtml: string; blo
   return { cleanHtml: clean, blockedTrackers: count };
 }
 
+const SandboxedEmailHtml: React.FC<{
+  html: string;
+  theme: 'light' | 'dark';
+}> = ({ html, theme }) => {
+  const docHtml = useMemo(() => {
+    const textColor = theme === 'dark' ? '#ecebf0' : '#1d1929';
+    const linkColor = theme === 'dark' ? '#bfa7e8' : '#6b46c1';
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 13.5px;
+      line-height: 1.6;
+      color: ${textColor};
+      background-color: transparent;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    img {
+      max-width: 100%;
+      height: auto;
+    }
+    a {
+      color: ${linkColor};
+      text-decoration: underline;
+    }
+    table {
+      max-width: 100%;
+    }
+  </style>
+</head>
+<body>${html}</body>
+</html>`;
+  }, [html, theme]);
+
+  return (
+    <iframe
+      title="Corpo do Email Seguro"
+      srcDoc={docHtml}
+      sandbox="allow-popups allow-popups-to-escape-sandbox"
+      style={{
+        width: '100%',
+        minHeight: '220px',
+        border: 'none',
+        display: 'block',
+        backgroundColor: 'transparent',
+      }}
+    />
+  );
+};
+
 export const ReadingPane: React.FC<ReadingPaneProps> = ({
   thread,
   threadIndex,
@@ -96,6 +170,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
   theme,
   loadingBody,
   aiPanelOpen,
+  summaryText,
   draftText,
   attachments,
   undoToast,
@@ -524,6 +599,26 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             <h1 className="tinta-title-reading" style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--ink)' }}>
               {thread.subject || '(Sem assunto)'}
             </h1>
+            {summaryText && (
+              <div
+                style={{
+                  marginTop: '12px',
+                  padding: '10px 14px',
+                  backgroundColor: 'var(--side)',
+                  border: '1px solid var(--line)',
+                  borderRadius: '8px',
+                  borderLeft: '3px solid var(--acc)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 600, color: 'var(--acc)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  <span>✦</span>
+                  <span>Resumo da Conversa</span>
+                </div>
+                <div style={{ marginTop: '4px', fontSize: '12.5px', lineHeight: 1.5, color: 'var(--ink)' }}>
+                  {summaryText}
+                </div>
+              </div>
+            )}
             {thread.messages.length > 1 && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px' }}>
                 <span style={{ fontSize: '12px', color: 'var(--mute)' }}>
@@ -710,10 +805,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                                   </span>
                                 </div>
                               )}
-                              <div
-                                dangerouslySetInnerHTML={{ __html: cleanHtml }}
-                                style={{ overflowX: 'auto' }}
-                              />
+                              <SandboxedEmailHtml html={cleanHtml} theme={theme} />
                             </div>
                           );
                         })() : (

@@ -6,6 +6,8 @@
 use thiserror::Error;
 
 pub const MAX_IPC_PAYLOAD_BYTES: usize = 1_048_576; // 1 MB máximo global (§3.1)
+pub const MAX_ATTACHMENTS_TOTAL_BYTES: usize = 25 * 1024 * 1024; // Limite de 25 MB do Gmail
+pub const MAX_REWRITE_TEXT_LEN: usize = 65_536; // 64 KB para reescrita de texto por IA
 const MAX_ID_LEN: usize = 160;
 const MAX_QUERY_LEN: usize = 512;
 const MAX_EMAIL_LEN: usize = 254;
@@ -20,6 +22,8 @@ pub enum IpcValidationError {
     InvalidIdentifierCharacters { field: &'static str },
     #[error("Campo obrigatório '{field}' encontra-se vazio.")]
     EmptyField { field: &'static str },
+    #[error("O tamanho total dos anexos ({actual} bytes) excede o limite máximo de {max} bytes (25 MB).")]
+    AttachmentsTooLarge { actual: usize, max: usize },
 }
 
 pub fn validate_non_null_bounded<'a>(
@@ -77,6 +81,16 @@ pub fn validate_optional_search_query(
     } else {
         Ok(Some(trimmed.to_string()))
     }
+}
+
+pub fn validate_attachments_total_bytes(total_bytes: usize) -> Result<(), IpcValidationError> {
+    if total_bytes > MAX_ATTACHMENTS_TOTAL_BYTES {
+        return Err(IpcValidationError::AttachmentsTooLarge {
+            actual: total_bytes,
+            max: MAX_ATTACHMENTS_TOTAL_BYTES,
+        });
+    }
+    Ok(())
 }
 
 #[cfg(test)]

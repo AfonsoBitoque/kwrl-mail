@@ -20,8 +20,8 @@ use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 use crate::db::{LocalDatabase, StoredAccount, ThreadDetailDto, ThreadListItemDto};
 use crate::gmail_sync::{build_gmail_http_client, GmailSyncEngine, SyncReport};
 use crate::ipc_validation::{
-    validate_email_address, validate_gmail_id, validate_non_null_bounded,
-    validate_optional_search_query,
+    validate_attachments_total_bytes, validate_email_address, validate_gmail_id,
+    validate_non_null_bounded, validate_optional_search_query, MAX_REWRITE_TEXT_LEN,
 };
 use crate::llm::{
     AiBootstrapProgressPayload, InferenceCompleted, LlmSupervisor, LocalModelStatus,
@@ -263,7 +263,6 @@ fn load_oauth_client_config(db: &LocalDatabase) -> Result<DesktopOAuthClientConf
     }
 
     if let Some((discovered_id, discovered_secret)) = try_discover_app_oauth_credentials() {
-        let _ = persist_oauth_client_to_keychain(db, &discovered_id, &discovered_secret);
         let cfg = DesktopOAuthClientConfig {
             client_id: discovered_id,
             client_secret: discovered_secret,
@@ -863,6 +862,13 @@ async fn send_gmail_message(
         _ => None,
     };
 
+    let total_attachment_bytes: usize = params
+        .attachments
+        .iter()
+        .map(|a| a.data_base64.len())
+        .sum();
+    validate_attachments_total_bytes(total_attachment_bytes).map_err(|e| e.to_string())?;
+
     let cfg = load_oauth_client_config(&state.db)?;
     let access_token = ensure_valid_access_token_with_endpoint(
         &state.http_client,
@@ -943,24 +949,58 @@ async fn mark_threads_read_status(
     thread_ids: Vec<String>,
     read: bool,
 ) -> Result<(), String> {
-    let cfg = load_oauth_client_config(&state.db)?;
     let clean_email = validate_email_address(&account_email).map_err(|e| e.to_string())?;
-
-    let tids: Vec<&str> = thread_ids.iter().map(|s| s.as_str()).collect();
-    let _ = state.db.update_threads_unread_batch(&tids, !read);
 
     let (add, rem): (&[&str], &[&str]) = if read {
         (&[], &["UNREAD"])
     } else {
         (&["UNREAD"], &[])
     };
-    let updates: Vec<(&str, &[&str], &[&str])> = tids.iter().map(|&tid| (tid, add, rem)).collect();
-    let _ = state.db.update_threads_labels_batch(&updates);
 
-    let futures = thread_ids.iter().map(|tid| {
-        state.sync_engine.modify_thread_labels_remote(&cfg, &clean_email, tid, add, rem)
-    });
-    let _ = futures_util::future::join_all(futures).await;
+    let mut succeeded_ids = Vec::with_capacity(thread_ids.len());
+    let mut last_error = None;
+
+    if let Ok(cfg) = load_oauth_client_config(&state.db) {
+        let futures = thread_ids.iter().map(|tid| {
+            let sync = &state.sync_engine;
+            let cfg = &cfg;
+            let email = &clean_email;
+            async move {
+                let res = sync.modify_thread_labels_remote(cfg, email, tid, add, rem).await;
+                (tid.clone(), res)
+            }
+        });
+        let results = futures_util::future::join_all(futures).await;
+        for (tid, res) in results {
+            match res {
+                Ok(()) => succeeded_ids.push(tid),
+                Err(e) => {
+                    last_error = Some(e.to_string());
+                }
+            }
+        }
+    } else {
+        succeeded_ids = thread_ids.clone();
+    }
+
+    if succeeded_ids.is_empty() && !thread_ids.is_empty() {
+        return Err(last_error.unwrap_or_else(|| "Falha remota ao atualizar estado de leitura.".into()));
+    }
+
+    let db = state.db.clone();
+    let succ_refs = succeeded_ids;
+    tokio::task::spawn_blocking(move || {
+        let tids: Vec<&str> = succ_refs.iter().map(|s| s.as_str()).collect();
+        let _ = db.update_threads_unread_batch(&tids, !read);
+        let updates: Vec<(&str, &[&str], &[&str])> = tids.iter().map(|&tid| (tid, add, rem)).collect();
+        let _ = db.update_threads_labels_batch(&updates);
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    if let Ok(unread) = state.db.get_total_unread_count() {
+        set_macos_dock_badge(unread);
+    }
 
     Ok(())
 }
@@ -971,19 +1011,49 @@ async fn archive_threads(
     account_email: String,
     thread_ids: Vec<String>,
 ) -> Result<(), String> {
-    let cfg = load_oauth_client_config(&state.db)?;
     let clean_email = validate_email_address(&account_email).map_err(|e| e.to_string())?;
 
-    let updates: Vec<(&str, &[&str], &[&str])> = thread_ids
-        .iter()
-        .map(|tid| (tid.as_str(), [].as_slice(), ["INBOX"].as_slice()))
-        .collect();
-    let _ = state.db.update_threads_labels_batch(&updates);
+    let mut succeeded_ids = Vec::with_capacity(thread_ids.len());
+    let mut last_error = None;
 
-    let futures = thread_ids.iter().map(|tid| {
-        state.sync_engine.modify_thread_labels_remote(&cfg, &clean_email, tid, &[], &["INBOX"])
-    });
-    let _ = futures_util::future::join_all(futures).await;
+    if let Ok(cfg) = load_oauth_client_config(&state.db) {
+        let futures = thread_ids.iter().map(|tid| {
+            let sync = &state.sync_engine;
+            let cfg = &cfg;
+            let email = &clean_email;
+            async move {
+                let res = sync.modify_thread_labels_remote(cfg, email, tid, &[], &["INBOX"]).await;
+                (tid.clone(), res)
+            }
+        });
+        let results = futures_util::future::join_all(futures).await;
+        for (tid, res) in results {
+            match res {
+                Ok(()) => succeeded_ids.push(tid),
+                Err(e) => {
+                    last_error = Some(e.to_string());
+                }
+            }
+        }
+    } else {
+        succeeded_ids = thread_ids.clone();
+    }
+
+    if succeeded_ids.is_empty() && !thread_ids.is_empty() {
+        return Err(last_error.unwrap_or_else(|| "Falha remota ao arquivar conversas.".into()));
+    }
+
+    let db = state.db.clone();
+    let succ_refs = succeeded_ids;
+    tokio::task::spawn_blocking(move || {
+        let updates: Vec<(&str, &[&str], &[&str])> = succ_refs
+            .iter()
+            .map(|tid| (tid.as_str(), [].as_slice(), ["INBOX"].as_slice()))
+            .collect();
+        let _ = db.update_threads_labels_batch(&updates);
+    })
+    .await
+    .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -994,19 +1064,49 @@ async fn unarchive_threads(
     account_email: String,
     thread_ids: Vec<String>,
 ) -> Result<(), String> {
-    let cfg = load_oauth_client_config(&state.db)?;
     let clean_email = validate_email_address(&account_email).map_err(|e| e.to_string())?;
 
-    let updates: Vec<(&str, &[&str], &[&str])> = thread_ids
-        .iter()
-        .map(|tid| (tid.as_str(), ["INBOX"].as_slice(), [].as_slice()))
-        .collect();
-    let _ = state.db.update_threads_labels_batch(&updates);
+    let mut succeeded_ids = Vec::with_capacity(thread_ids.len());
+    let mut last_error = None;
 
-    let futures = thread_ids.iter().map(|tid| {
-        state.sync_engine.modify_thread_labels_remote(&cfg, &clean_email, tid, &["INBOX"], &[])
-    });
-    let _ = futures_util::future::join_all(futures).await;
+    if let Ok(cfg) = load_oauth_client_config(&state.db) {
+        let futures = thread_ids.iter().map(|tid| {
+            let sync = &state.sync_engine;
+            let cfg = &cfg;
+            let email = &clean_email;
+            async move {
+                let res = sync.modify_thread_labels_remote(cfg, email, tid, &["INBOX"], &[]).await;
+                (tid.clone(), res)
+            }
+        });
+        let results = futures_util::future::join_all(futures).await;
+        for (tid, res) in results {
+            match res {
+                Ok(()) => succeeded_ids.push(tid),
+                Err(e) => {
+                    last_error = Some(e.to_string());
+                }
+            }
+        }
+    } else {
+        succeeded_ids = thread_ids.clone();
+    }
+
+    if succeeded_ids.is_empty() && !thread_ids.is_empty() {
+        return Err(last_error.unwrap_or_else(|| "Falha remota ao repor conversas na Caixa de Entrada.".into()));
+    }
+
+    let db = state.db.clone();
+    let succ_refs = succeeded_ids;
+    tokio::task::spawn_blocking(move || {
+        let updates: Vec<(&str, &[&str], &[&str])> = succ_refs
+            .iter()
+            .map(|tid| (tid.as_str(), ["INBOX"].as_slice(), [].as_slice()))
+            .collect();
+        let _ = db.update_threads_labels_batch(&updates);
+    })
+    .await
+    .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -1017,19 +1117,49 @@ async fn trash_threads(
     account_email: String,
     thread_ids: Vec<String>,
 ) -> Result<(), String> {
-    let cfg = load_oauth_client_config(&state.db)?;
     let clean_email = validate_email_address(&account_email).map_err(|e| e.to_string())?;
 
-    let updates: Vec<(&str, &[&str], &[&str])> = thread_ids
-        .iter()
-        .map(|tid| (tid.as_str(), ["TRASH"].as_slice(), ["INBOX"].as_slice()))
-        .collect();
-    let _ = state.db.update_threads_labels_batch(&updates);
+    let mut succeeded_ids = Vec::with_capacity(thread_ids.len());
+    let mut last_error = None;
 
-    let futures = thread_ids.iter().map(|tid| {
-        state.sync_engine.trash_thread_remote(&cfg, &clean_email, tid)
-    });
-    let _ = futures_util::future::join_all(futures).await;
+    if let Ok(cfg) = load_oauth_client_config(&state.db) {
+        let futures = thread_ids.iter().map(|tid| {
+            let sync = &state.sync_engine;
+            let cfg = &cfg;
+            let email = &clean_email;
+            async move {
+                let res = sync.trash_thread_remote(cfg, email, tid).await;
+                (tid.clone(), res)
+            }
+        });
+        let results = futures_util::future::join_all(futures).await;
+        for (tid, res) in results {
+            match res {
+                Ok(()) => succeeded_ids.push(tid),
+                Err(e) => {
+                    last_error = Some(e.to_string());
+                }
+            }
+        }
+    } else {
+        succeeded_ids = thread_ids.clone();
+    }
+
+    if succeeded_ids.is_empty() && !thread_ids.is_empty() {
+        return Err(last_error.unwrap_or_else(|| "Falha remota ao mover para a reciclagem.".into()));
+    }
+
+    let db = state.db.clone();
+    let succ_refs = succeeded_ids;
+    tokio::task::spawn_blocking(move || {
+        let updates: Vec<(&str, &[&str], &[&str])> = succ_refs
+            .iter()
+            .map(|tid| (tid.as_str(), ["TRASH"].as_slice(), ["INBOX"].as_slice()))
+            .collect();
+        let _ = db.update_threads_labels_batch(&updates);
+    })
+    .await
+    .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -1040,19 +1170,109 @@ async fn untrash_threads(
     account_email: String,
     thread_ids: Vec<String>,
 ) -> Result<(), String> {
-    let cfg = load_oauth_client_config(&state.db)?;
     let clean_email = validate_email_address(&account_email).map_err(|e| e.to_string())?;
 
-    let updates: Vec<(&str, &[&str], &[&str])> = thread_ids
-        .iter()
-        .map(|tid| (tid.as_str(), ["INBOX"].as_slice(), ["TRASH"].as_slice()))
-        .collect();
-    let _ = state.db.update_threads_labels_batch(&updates);
+    let mut succeeded_ids = Vec::with_capacity(thread_ids.len());
+    let mut last_error = None;
 
-    let futures = thread_ids.iter().map(|tid| {
-        state.sync_engine.untrash_thread_remote(&cfg, &clean_email, tid)
-    });
-    let _ = futures_util::future::join_all(futures).await;
+    if let Ok(cfg) = load_oauth_client_config(&state.db) {
+        let futures = thread_ids.iter().map(|tid| {
+            let sync = &state.sync_engine;
+            let cfg = &cfg;
+            let email = &clean_email;
+            async move {
+                let res = sync.untrash_thread_remote(cfg, email, tid).await;
+                (tid.clone(), res)
+            }
+        });
+        let results = futures_util::future::join_all(futures).await;
+        for (tid, res) in results {
+            match res {
+                Ok(()) => succeeded_ids.push(tid),
+                Err(e) => {
+                    last_error = Some(e.to_string());
+                }
+            }
+        }
+    } else {
+        succeeded_ids = thread_ids.clone();
+    }
+
+    if succeeded_ids.is_empty() && !thread_ids.is_empty() {
+        return Err(last_error.unwrap_or_else(|| "Falha remota ao restaurar da reciclagem.".into()));
+    }
+
+    let db = state.db.clone();
+    let succ_refs = succeeded_ids;
+    tokio::task::spawn_blocking(move || {
+        let updates: Vec<(&str, &[&str], &[&str])> = succ_refs
+            .iter()
+            .map(|tid| (tid.as_str(), ["INBOX"].as_slice(), ["TRASH"].as_slice()))
+            .collect();
+        let _ = db.update_threads_labels_batch(&updates);
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+async fn mark_threads_spam(
+    state: State<'_, CorvoState>,
+    account_email: String,
+    thread_ids: Vec<String>,
+    is_spam: bool,
+) -> Result<(), String> {
+    let clean_email = validate_email_address(&account_email).map_err(|e| e.to_string())?;
+
+    let (add, rem): (&[&str], &[&str]) = if is_spam {
+        (&["SPAM"], &["INBOX"])
+    } else {
+        (&["INBOX"], &["SPAM"])
+    };
+
+    let mut succeeded_ids = Vec::with_capacity(thread_ids.len());
+    let mut last_error = None;
+
+    if let Ok(cfg) = load_oauth_client_config(&state.db) {
+        let futures = thread_ids.iter().map(|tid| {
+            let sync = &state.sync_engine;
+            let cfg = &cfg;
+            let email = &clean_email;
+            async move {
+                let res = sync.modify_thread_labels_remote(cfg, email, tid, add, rem).await;
+                (tid.clone(), res)
+            }
+        });
+        let results = futures_util::future::join_all(futures).await;
+        for (tid, res) in results {
+            match res {
+                Ok(()) => succeeded_ids.push(tid),
+                Err(e) => {
+                    last_error = Some(e.to_string());
+                }
+            }
+        }
+    } else {
+        succeeded_ids = thread_ids.clone();
+    }
+
+    if succeeded_ids.is_empty() && !thread_ids.is_empty() {
+        return Err(last_error.unwrap_or_else(|| "Falha remota ao atualizar estado de spam.".into()));
+    }
+
+    let db = state.db.clone();
+    let succ_refs = succeeded_ids;
+    tokio::task::spawn_blocking(move || {
+        let updates: Vec<(&str, &[&str], &[&str])> = succ_refs
+            .iter()
+            .map(|tid| (tid.as_str(), add, rem))
+            .collect();
+        let _ = db.update_threads_labels_batch(&updates);
+    })
+    .await
+    .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -1064,22 +1284,29 @@ async fn star_thread(
     thread_id: String,
     starred: bool,
 ) -> Result<(), String> {
-    let cfg = load_oauth_client_config(&state.db)?;
     let clean_email = validate_email_address(&account_email).map_err(|e| e.to_string())?;
-
-    if starred {
-        let _ = state.db.update_thread_labels(&thread_id, &["STARRED"], &[]);
-        let _ = state
-            .sync_engine
-            .modify_thread_labels_remote(&cfg, &clean_email, &thread_id, &["STARRED"], &[])
-            .await;
+    let (add, rem): (&[&str], &[&str]) = if starred {
+        (&["STARRED"], &[])
     } else {
-        let _ = state.db.update_thread_labels(&thread_id, &[], &["STARRED"]);
-        let _ = state
+        (&[], &["STARRED"])
+    };
+
+    if let Ok(cfg) = load_oauth_client_config(&state.db) {
+        state
             .sync_engine
-            .modify_thread_labels_remote(&cfg, &clean_email, &thread_id, &[], &["STARRED"])
-            .await;
+            .modify_thread_labels_remote(&cfg, &clean_email, &thread_id, add, rem)
+            .await
+            .map_err(|e| format!("Falha ao atualizar estrela no Gmail: {}", e))?;
     }
+
+    let db = state.db.clone();
+    let tid_clone = thread_id.clone();
+    tokio::task::spawn_blocking(move || {
+        let _ = db.update_thread_labels(&tid_clone, add, rem);
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
     Ok(())
 }
 
@@ -1089,16 +1316,46 @@ async fn delete_threads_permanently(
     account_email: String,
     thread_ids: Vec<String>,
 ) -> Result<(), String> {
-    let cfg = load_oauth_client_config(&state.db)?;
     let clean_email = validate_email_address(&account_email).map_err(|e| e.to_string())?;
 
-    let tids: Vec<&str> = thread_ids.iter().map(|s| s.as_str()).collect();
-    let _ = state.db.delete_threads_local_batch(&tids);
+    let mut succeeded_ids = Vec::with_capacity(thread_ids.len());
+    let mut last_error = None;
 
-    let futures = thread_ids.iter().map(|tid| {
-        state.sync_engine.delete_thread_remote(&cfg, &clean_email, tid)
-    });
-    let _ = futures_util::future::join_all(futures).await;
+    if let Ok(cfg) = load_oauth_client_config(&state.db) {
+        let futures = thread_ids.iter().map(|tid| {
+            let sync = &state.sync_engine;
+            let cfg = &cfg;
+            let email = &clean_email;
+            async move {
+                let res = sync.delete_thread_remote(cfg, email, tid).await;
+                (tid.clone(), res)
+            }
+        });
+        let results = futures_util::future::join_all(futures).await;
+        for (tid, res) in results {
+            match res {
+                Ok(()) => succeeded_ids.push(tid),
+                Err(e) => {
+                    last_error = Some(e.to_string());
+                }
+            }
+        }
+    } else {
+        succeeded_ids = thread_ids.clone();
+    }
+
+    if succeeded_ids.is_empty() && !thread_ids.is_empty() {
+        return Err(last_error.unwrap_or_else(|| "Falha remota ao eliminar conversas definitivamente.".into()));
+    }
+
+    let db = state.db.clone();
+    let succ_refs = succeeded_ids;
+    tokio::task::spawn_blocking(move || {
+        let tids: Vec<&str> = succ_refs.iter().map(|s| s.as_str()).collect();
+        let _ = db.delete_threads_local_batch(&tids);
+    })
+    .await
+    .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -1191,17 +1448,18 @@ async fn list_cached_threads(
     let clean_query =
         validate_optional_search_query(search_query.as_deref()).map_err(|e| e.to_string())?;
 
-    let threads = state
-        .db
-        .list_threads_lightweight(
+    let db = state.db.clone();
+    tokio::task::spawn_blocking(move || {
+        db.list_threads_lightweight(
             clean_acc.as_deref(),
             clean_query.as_deref(),
             view_filter.as_deref(),
             250,
         )
-        .map_err(|e| e.to_string())?;
-
-    Ok(threads)
+        .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -1483,11 +1741,19 @@ async fn stream_cdlr_suggestion(
         return Err("Nível CDLR inválido.".into());
     }
 
-    let detail = state
-        .db
-        .get_thread_detail(&clean_tid)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "Conversa não encontrada.".to_string())?;
+    let detail = if let Ok(cfg) = load_oauth_client_config(&state.db) {
+        state
+            .sync_engine
+            .open_thread_and_hydrate_bodies(&cfg, &clean_tid)
+            .await
+            .map_err(|e| e.to_string())?
+    } else {
+        state
+            .db
+            .get_thread_detail(&clean_tid)
+            .map_err(|e| e.to_string())?
+    }
+    .ok_or_else(|| "Conversa não encontrada.".to_string())?;
 
     if let Some(acc) = state
         .db
@@ -1539,9 +1805,10 @@ async fn rewrite_text_with_ai(
     if state.master_ai_kill_switch.load(Ordering::Relaxed) {
         return Err("Camada de IA desativada globalmente nas definições.".into());
     }
-    if text.trim().is_empty() {
-        return Err("O texto a processar está vazio.".into());
-    }
+    let clean_text = validate_non_null_bounded("text", &text, MAX_REWRITE_TEXT_LEN)
+        .map_err(|e| e.to_string())?;
+    let clean_action = validate_non_null_bounded("action", &action, 64)
+        .map_err(|e| e.to_string())?;
     let req_id_clean = if request_id.trim().is_empty() {
         format!(
             "req_txt_{}",
@@ -1565,8 +1832,8 @@ async fn rewrite_text_with_ai(
         .llm
         .stream_text_ai_action(
             &req_id_clean,
-            &text,
-            &action,
+            clean_text,
+            clean_action,
             recipient.as_deref(),
             Some(&user_sig),
             target_lang.as_deref(),
@@ -1694,14 +1961,17 @@ async fn search_messages_fts(
     account_email: Option<String>,
     limit: Option<usize>,
 ) -> Result<Vec<ThreadListItemDto>, String> {
-    let clean_q = query.trim();
+    let clean_q = query.trim().to_string();
     if clean_q.is_empty() {
         return Ok(Vec::new());
     }
-    state
-        .db
-        .search_threads_fts(clean_q, account_email.as_deref(), limit.unwrap_or(50))
-        .map_err(|e| e.to_string())
+    let db = state.db.clone();
+    tokio::task::spawn_blocking(move || {
+        db.search_threads_fts(&clean_q, account_email.as_deref(), limit.unwrap_or(50))
+            .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -1924,16 +2194,32 @@ pub fn run() {
                         _ = poll_notify.notified() => {},
                     }
                     if let Ok(cfg) = load_oauth_client_config(&bg_db) {
-                        if let Ok(reports) =
-                            bg_sync.run_non_overlapping_sync_all(&cfg, 250).await
-                        {
-                            for rep in &reports {
-                                if rep.added_messages > 0 || rep.deleted_messages > 0 {
-                                    let _ = bg_handle.emit("gmail-sync-state", rep);
+                        match bg_sync.run_non_overlapping_sync_all(&cfg, 250).await {
+                            Ok(reports) => {
+                                for rep in &reports {
+                                    if rep.added_messages > 0 || rep.deleted_messages > 0 {
+                                        let _ = bg_handle.emit("gmail-sync-state", rep);
+                                    }
+                                }
+                                if let Ok(unread) = bg_db.get_total_unread_count() {
+                                    set_macos_dock_badge(unread);
                                 }
                             }
-                            if let Ok(unread) = bg_db.get_total_unread_count() {
-                                set_macos_dock_badge(unread);
+                            Err(e) => {
+                                let err_str = e.to_string();
+                                let is_auth = err_str.contains("OAuth")
+                                    || err_str.contains("autenticação")
+                                    || err_str.contains("revoked")
+                                    || err_str.contains("expired");
+                                let is_quota = err_str.contains("Quota") || err_str.contains("429");
+                                let _ = bg_handle.emit(
+                                    "gmail-sync-error",
+                                    &serde_json::json!({
+                                        "error": err_str,
+                                        "isAuthError": is_auth,
+                                        "isQuotaError": is_quota,
+                                    }),
+                                );
                             }
                         }
                     }
@@ -1989,6 +2275,7 @@ pub fn run() {
             unarchive_threads,
             trash_threads,
             untrash_threads,
+            mark_threads_spam,
             star_thread,
             delete_threads_permanently,
             download_attachment,

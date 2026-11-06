@@ -722,13 +722,20 @@ impl GmailSyncEngine {
             "addLabelIds": add_labels,
             "removeLabelIds": remove_labels,
         });
-        let _ = self
+        let resp = self
             .client
             .post(&url)
             .bearer_auth(&bearer)
             .json(&payload)
             .send()
-            .await;
+            .await
+            .map_err(|e| GmailSyncError::Transport(e.to_string()))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status().as_u16();
+            let detail = resp.text().await.unwrap_or_default();
+            return Err(GmailSyncError::ApiError { status, detail });
+        }
         Ok(())
     }
 
@@ -749,7 +756,19 @@ impl GmailSyncEngine {
             self.endpoints.api_base,
             urlencoding_param(thread_id)
         );
-        let _ = self.client.post(&url).bearer_auth(&bearer).send().await;
+        let resp = self
+            .client
+            .post(&url)
+            .bearer_auth(&bearer)
+            .send()
+            .await
+            .map_err(|e| GmailSyncError::Transport(e.to_string()))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status().as_u16();
+            let detail = resp.text().await.unwrap_or_default();
+            return Err(GmailSyncError::ApiError { status, detail });
+        }
         Ok(())
     }
 
@@ -770,7 +789,19 @@ impl GmailSyncEngine {
             self.endpoints.api_base,
             urlencoding_param(thread_id)
         );
-        let _ = self.client.post(&url).bearer_auth(&bearer).send().await;
+        let resp = self
+            .client
+            .post(&url)
+            .bearer_auth(&bearer)
+            .send()
+            .await
+            .map_err(|e| GmailSyncError::Transport(e.to_string()))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status().as_u16();
+            let detail = resp.text().await.unwrap_or_default();
+            return Err(GmailSyncError::ApiError { status, detail });
+        }
         Ok(())
     }
 
@@ -791,7 +822,19 @@ impl GmailSyncEngine {
             self.endpoints.api_base,
             urlencoding_param(thread_id)
         );
-        let _ = self.client.delete(&url).bearer_auth(&bearer).send().await;
+        let resp = self
+            .client
+            .delete(&url)
+            .bearer_auth(&bearer)
+            .send()
+            .await
+            .map_err(|e| GmailSyncError::Transport(e.to_string()))?;
+
+        if !resp.status().is_success() {
+            let status = resp.status().as_u16();
+            let detail = resp.text().await.unwrap_or_default();
+            return Err(GmailSyncError::ApiError { status, detail });
+        }
         Ok(())
     }
 }

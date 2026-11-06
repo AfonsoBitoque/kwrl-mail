@@ -97,7 +97,8 @@ const ThreadCard = React.memo<ThreadCardProps>(({
             <input
               type="checkbox"
               checked={isChecked}
-              onChange={() => {}}
+              onChange={() => onToggleSelectThread(thread.id)}
+              aria-label={`Selecionar conversa de ${thread.fromName || thread.fromEmail}`}
               style={{
                 cursor: 'pointer',
                 accentColor: 'var(--color-accent, #a78bfa)',

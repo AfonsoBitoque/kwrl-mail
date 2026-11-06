@@ -19,6 +19,7 @@ import {
   isRunningInsideTauri,
   listCachedThreads,
   markThreadsReadStatus,
+  markThreadsSpam,
   mergeSuggestionIntoDraft,
   openThreadDetail,
   saveCustomMailboxes,
@@ -29,8 +30,8 @@ import {
   startGmailOAuth,
   streamCdlrSuggestion,
   subscribeToAiBootstrapProgress,
-  subscribeToAiTokens,
   subscribeToGmailSync,
+  subscribeToGmailSyncError,
   syncGmailNow,
   trashThreads,
   unarchiveThreads,
@@ -203,32 +204,30 @@ export const App: React.FC = () => {
     localStorage.setItem('tinta-spam-ids', JSON.stringify(Array.from(spamThreadIds)));
   }, [spamThreadIds]);
 
-  // Subscreve tokens de IA em streaming com padrão sem fugas
+  // Escuta erros de sincronização e autenticação do Gmail em segundo plano
   useEffect(() => {
+    if (!tauriRuntime) return;
     let cancelled = false;
     let unlisten: (() => void) | null = null;
 
-    subscribeToAiTokens((evt) => {
+    subscribeToGmailSyncError((errEvt) => {
       if (cancelled) return;
-      if (evt.tier === 'resumo-calmo') {
-        setSummariesByThread((prev) => ({
-          ...prev,
-          [evt.threadId]: (prev[evt.threadId] || '') + evt.delta,
-        }));
+      if (errEvt.isAuthError) {
+        setOnboardingError('Sessão Google expirada ou revogada. Por favor autentique novamente a conta.');
+        triggerUndoNotice('Sessão expirada: reconecte a conta nas definições', () => setSettingsOpen(true));
+      } else if (errEvt.isQuotaError) {
+        triggerUndoNotice('Quota temporária da API Gmail excedida. A aguardar retoma automática.', () => {});
       }
     }).then((fn) => {
-      if (cancelled) {
-        fn();
-      } else {
-        unlisten = fn;
-      }
+      if (cancelled) fn();
+      else unlisten = fn;
     });
 
     return () => {
       cancelled = true;
       if (unlisten) unlisten();
     };
-  }, []);
+  }, [tauriRuntime]);
 
   const refreshBootstrap = useCallback(async () => {
     if (!tauriRuntime) return;
@@ -383,7 +382,8 @@ export const App: React.FC = () => {
     return { boxCounts: counts, accountUnreadCounts: accCounts, customBoxCounts: cboxCounts };
   }, [threads, archivedThreadIds, trashThreadIds, spamThreadIds, starredThreadIds, draftsByThread, accounts, customMailboxes]);
 
-  // Pesquisa Global Instantânea no SQLite com FTS5 e BM25 (§Ponto 2)
+  // Pesquisa Global Instantânea no SQLite com FTS5 e BM25 com proteção anti-corrida
+  const searchSeqRef = useRef(0);
   useEffect(() => {
     const q = searchQuery.trim();
     if (!q || !tauriRuntime) {
@@ -392,15 +392,20 @@ export const App: React.FC = () => {
     }
 
     const timer = setTimeout(() => {
+      const seq = ++searchSeqRef.current;
       const targetAcc = activeBoxId.startsWith('account:')
         ? activeBoxId.replace('account:', '')
         : null;
       void searchMessagesFts(q, targetAcc, 50)
         .then((res) => {
-          setFtsResults(res || []);
+          if (seq === searchSeqRef.current) {
+            setFtsResults(res || []);
+          }
         })
         .catch((err) => {
-          console.error('Erro na pesquisa FTS5:', err);
+          if (seq === searchSeqRef.current) {
+            console.error('Erro na pesquisa FTS5:', err);
+          }
         });
     }, 150);
 
@@ -481,6 +486,7 @@ export const App: React.FC = () => {
     return def ? def.label : 'Entrada';
   }, [activeBoxId, accounts, customMailboxes]);
 
+  const selectThreadSeqRef = useRef(0);
   const handleSelectThread = useCallback(
     async (threadId: string) => {
       setSelectedThreadId(threadId);
@@ -492,14 +498,21 @@ export const App: React.FC = () => {
       });
 
       if (!tauriRuntime) return;
+      const seq = ++selectThreadSeqRef.current;
       setLoadingBody(true);
       try {
         const payload = await openThreadDetail(threadId);
-        setOpenedThread(payload.thread);
+        if (seq === selectThreadSeqRef.current) {
+          setOpenedThread(payload.thread);
+        }
       } catch (err) {
-        console.error('Falha ao abrir detalhe:', err);
+        if (seq === selectThreadSeqRef.current) {
+          console.error('Falha ao abrir detalhe:', err);
+        }
       } finally {
-        setLoadingBody(false);
+        if (seq === selectThreadSeqRef.current) {
+          setLoadingBody(false);
+        }
       }
     },
     [tauriRuntime]
@@ -543,6 +556,28 @@ export const App: React.FC = () => {
       undoTimeoutRef.current = null;
     }, 6000);
   };
+
+  const groupThreadIdsByAccount = useCallback(
+    (ids: string[]): Map<string, string[]> => {
+      const map = new Map<string, string[]>();
+      const threadMap = new Map<string, string>();
+      for (const t of threads) {
+        if (t.accountEmail) {
+          threadMap.set(t.id, t.accountEmail);
+        }
+      }
+      const defaultAcc = accounts[0]?.email || '';
+      for (const id of ids) {
+        const acc = threadMap.get(id) || defaultAcc;
+        if (!acc) continue;
+        const list = map.get(acc) || [];
+        list.push(id);
+        map.set(acc, list);
+      }
+      return map;
+    },
+    [threads, accounts]
+  );
 
   const handleArchiveThread = () => {
     if (!selectedThreadId) return;
@@ -608,13 +643,29 @@ export const App: React.FC = () => {
   const handleSpamThread = () => {
     if (!selectedThreadId) return;
     const tid = selectedThreadId;
+    const currentIdx = currentThreadIndex;
+    const accountEmail = openedThread?.accountEmail || accounts[0]?.email || '';
+
     setSpamThreadIds((prev) => new Set([...prev, tid]));
-    triggerUndoNotice('Mensagem movida para o lixo', () => {
+    if (tauriRuntime && accountEmail) {
+      void markThreadsSpam(accountEmail, [tid], true);
+    }
+
+    const nextThreads = mailboxThreads.filter((t) => t.id !== tid);
+    if (nextThreads.length > 0) {
+      const nextIdx = Math.min(currentIdx, nextThreads.length - 1);
+      void handleSelectThread(nextThreads[nextIdx].id);
+    }
+
+    triggerUndoNotice('Mensagem marcada como spam', () => {
       setSpamThreadIds((prev) => {
         const next = new Set(prev);
         next.delete(tid);
         return next;
       });
+      if (tauriRuntime && accountEmail) {
+        void markThreadsSpam(accountEmail, [tid], false);
+      }
       void handleSelectThread(tid);
     });
   };
@@ -657,8 +708,10 @@ export const App: React.FC = () => {
     setSelectedThreadIds(new Set());
 
     if (tauriRuntime) {
-      const accountEmail = accounts[0]?.email || '';
-      void archiveThreads(accountEmail, ids);
+      const grouped = groupThreadIdsByAccount(ids);
+      grouped.forEach((accIds, accEmail) => {
+        void archiveThreads(accEmail, accIds);
+      });
     }
     triggerUndoNotice(`${ids.length} conversas arquivadas`, () => {
       setArchivedThreadIds((prev) => {
@@ -667,8 +720,10 @@ export const App: React.FC = () => {
         return next;
       });
       if (tauriRuntime) {
-        const accountEmail = accounts[0]?.email || '';
-        void unarchiveThreads(accountEmail, ids);
+        const grouped = groupThreadIdsByAccount(ids);
+        grouped.forEach((accIds, accEmail) => {
+          void unarchiveThreads(accEmail, accIds);
+        });
       }
     });
   };
@@ -680,8 +735,10 @@ export const App: React.FC = () => {
     setSelectedThreadIds(new Set());
 
     if (tauriRuntime) {
-      const accountEmail = accounts[0]?.email || '';
-      void trashThreads(accountEmail, ids);
+      const grouped = groupThreadIdsByAccount(ids);
+      grouped.forEach((accIds, accEmail) => {
+        void trashThreads(accEmail, accIds);
+      });
     }
     triggerUndoNotice(`${ids.length} conversas movidas para a reciclagem`, () => {
       setTrashThreadIds((prev) => {
@@ -690,8 +747,10 @@ export const App: React.FC = () => {
         return next;
       });
       if (tauriRuntime) {
-        const accountEmail = accounts[0]?.email || '';
-        void untrashThreads(accountEmail, ids);
+        const grouped = groupThreadIdsByAccount(ids);
+        grouped.forEach((accIds, accEmail) => {
+          void untrashThreads(accEmail, accIds);
+        });
       }
     });
   };
@@ -704,8 +763,10 @@ export const App: React.FC = () => {
     );
     setSelectedThreadIds(new Set());
     if (tauriRuntime) {
-      const accountEmail = accounts[0]?.email || '';
-      void markThreadsReadStatus(accountEmail, ids, read);
+      const grouped = groupThreadIdsByAccount(ids);
+      grouped.forEach((accIds, accEmail) => {
+        void markThreadsReadStatus(accEmail, accIds, read);
+      });
     }
     triggerUndoNotice(`${ids.length} conversas marcadas como ${read ? 'lidas' : 'não lidas'}`, () => {});
   };

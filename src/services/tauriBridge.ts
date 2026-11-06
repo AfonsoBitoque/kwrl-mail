@@ -181,10 +181,22 @@ export async function subscribeToAiTokens(
   return listen<AiTokenEvent>('ai-token', (evt) => handler(evt.payload));
 }
 
+export interface SyncErrorReport {
+  error: string;
+  isAuthError: boolean;
+  isQuotaError: boolean;
+}
+
 export async function subscribeToGmailSync(
   handler: (report: SyncReport) => void
 ): Promise<UnlistenFn> {
   return listen<SyncReport>('gmail-sync-state', (evt) => handler(evt.payload));
+}
+
+export async function subscribeToGmailSyncError(
+  handler: (report: SyncErrorReport) => void
+): Promise<UnlistenFn> {
+  return listen<SyncErrorReport>('gmail-sync-error', (evt) => handler(evt.payload));
 }
 
 export function mergeSuggestionIntoDraft(
@@ -281,6 +293,18 @@ export async function untrashThreads(
   return invoke<void>('untrash_threads', {
     accountEmail,
     threadIds,
+  });
+}
+
+export async function markThreadsSpam(
+  accountEmail: string,
+  threadIds: string[],
+  isSpam: boolean
+): Promise<void> {
+  return invoke<void>('mark_threads_spam', {
+    accountEmail,
+    threadIds,
+    isSpam,
   });
 }
 

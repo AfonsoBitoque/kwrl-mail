@@ -22,6 +22,9 @@ Esta pasta contém toda a infraestrutura para gerar dados sintéticos de alta fi
 
 ## Prioridade Automática no Binário Tauri do Corvo
 O backend do Corvo (`src-tauri/src/lib.rs`) verifica prioritariamente se existe um modelo afinado:
-1. `~/Library/Application Support/pt.corvo.mail/models/corvo-lm-finetuned.gguf` (macOS) ou `%LOCALAPPDATA%\pt.corvo.mail\models\corvo-lm-finetuned.gguf` (Windows).
+1. Caminhos suportados:
+   - **macOS**: `~/Library/Application Support/pt.corvo.mail/models/corvo-lm-finetuned.gguf`
+   - **Linux**: `~/.local/share/pt.corvo.mail/models/corvo-lm-finetuned.gguf` (ou `$XDG_DATA_HOME/pt.corvo.mail/models/`)
+   - **Windows**: `%LOCALAPPDATA%\pt.corvo.mail\models\corvo-lm-finetuned.gguf`
 2. Se presente, a interface exibe **`Motor Corvo (Fine-Tune)`** e ativa-o com prioridade máxima.
 3. Caso contrário, utiliza o motor oficial padrão (`corvo-lm-3b-q4_k_m.gguf`).

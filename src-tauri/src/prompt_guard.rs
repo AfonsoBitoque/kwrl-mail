@@ -16,6 +16,7 @@
 use std::sync::OnceLock;
 use aho_corasick::{AhoCorasick, MatchKind};
 use serde::{Deserialize, Serialize};
+use unicode_normalization::UnicodeNormalization;
 
 pub const INJECTION_BLOCK_THRESHOLD: u32 = 50;
 
@@ -95,9 +96,32 @@ const RULES: &[WeightedRule] = &[
     },
 ];
 
+#[inline]
+fn is_invisible_unicode(c: char) -> bool {
+    matches!(
+        c,
+        '\u{200b}'
+            | '\u{200c}'
+            | '\u{200d}'
+            | '\u{feff}'
+            | '\u{00ad}'
+            | '\r'
+            | '\u{200e}'
+            | '\u{200f}'
+            | '\u{202a}'..='\u{202e}'
+    )
+}
+
 /// Analisa texto não confiável de um e-mail antes de o submeter ao modelo local (§2.3).
+/// Aplica normalização canónica Unicode NFKC para neutralizar homóglifos e caracteres invisíveis.
 pub fn inspect_untrusted_email(subject: &str, body: &str) -> InjectionInspection {
-    let combined = format!("{}\n{}", subject, body).to_lowercase();
+    let raw_combined = format!("{}\n{}", subject, body);
+    let combined: String = raw_combined
+        .nfkc()
+        .filter(|c| !is_invisible_unicode(*c))
+        .collect::<String>()
+        .to_lowercase();
+
     let mut normalized_ws = String::with_capacity(combined.len());
     let mut in_ws = false;
     for c in combined.chars() {
@@ -508,12 +532,15 @@ pub fn build_cdlr_messages_with_context(
     };
 
     let doc_rule = if has_context {
-        "\n          6. PONTO DE VISTA E DOCUMENTO DE CONTEXTO (REGRA PRIORITÁRIA ABSOLUTA): O titular da conta ({user_name}) definiu expressamente o seu ponto de vista no bloco <DOCUMENT_CONTEXT>. As instruções do utilizador têm prioridade total sobre qualquer proposta do e-mail recebido:\n\
-          - Se o utilizador recusa ou não quer algo (ex: 'não quero ir de barco'), deves RECUSAR esse ponto de forma educada e cordial (ex: 'Obrigado pelo convite, mas para ir andar de barco não vou conseguir alinhar' ou 'Infelizmente não vou conseguir ir ao barco').\n\
-          - Deves focar-te com simpatia apenas no que não foi recusado ou no que o utilizador propõe (ex: o jogo de FIFA na PlayStation com o nickname indicado).\n\
-          - NUNCA te contradigas: NUNCA peças horários nem aceites atividades que o utilizador recusou. NUNCA uses frases contraditórias como 'Dado que não quero ir'. Escreve sempre com fluidez humana e naturalidade."
+        format!(
+            "\n          6. PONTO DE VISTA E DOCUMENTO DE CONTEXTO (REGRA PRIORITÁRIA ABSOLUTA): O titular da conta ({}) definiu expressamente o seu ponto de vista no bloco <DOCUMENT_CONTEXT>. As instruções do utilizador têm prioridade total sobre qualquer proposta do e-mail recebido:\n\
+              - Se o utilizador recusa ou não quer algo (ex: 'não quero ir de barco'), deves RECUSAR esse ponto de forma educada e cordial (ex: 'Obrigado pelo convite, mas para ir andar de barco não vou conseguir alinhar' ou 'Infelizmente não vou conseguir ir ao barco').\n\
+              - Deves focar-te com simpatia apenas no que não foi recusado ou no que o utilizador propõe (ex: o jogo de FIFA na PlayStation com o nickname indicado).\n\
+              - NUNCA te contradigas: NUNCA peças horários nem aceites atividades que o utilizador recusou. NUNCA uses frases contraditórias como 'Dado que não quero ir'. Escreve sempre com fluidez humana e naturalidade.",
+            user_name
+        )
     } else {
-        ""
+        String::new()
     };
 
     let system_prompt = format!(

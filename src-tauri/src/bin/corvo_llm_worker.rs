@@ -352,6 +352,12 @@ fn format_with_native_template(
                 }
             }
         }
+        if fallback_prompt.trim().is_empty() {
+            return format!(
+                "<|im_start|>system\n{}<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n",
+                sys, usr
+            );
+        }
     }
     fallback_prompt.to_string()
 }
@@ -387,16 +393,22 @@ fn run_streaming_inference(
 
     let total_prompt = prompt_tokens.len();
 
-    // Limpa sempre o KV cache antes de cada inferência para garantir que
-    // qualquer alteração de contexto, instruções do utilizador ou regeneração
-    // seja processada de forma 100% limpa, sem qualquer contaminação ou resíduo de pedidos anteriores.
-    ctx.clear_kv_cache();
-    cached_prompt_tokens.clear();
+    // Reutiliza o prefixo KV se os tokens iniciais coincidirem com o cache pré-aquecido
+    let mut evaluate_from = 0;
+    if !cached_prompt_tokens.is_empty()
+        && prompt_tokens.len() >= cached_prompt_tokens.len()
+        && prompt_tokens.starts_with(cached_prompt_tokens)
+    {
+        evaluate_from = cached_prompt_tokens.len();
+    } else {
+        ctx.clear_kv_cache();
+        cached_prompt_tokens.clear();
+    }
 
     let started = Instant::now();
     let mut batch = LlamaBatch::new(PROMPT_BATCH_SIZE, 1);
 
-    for chunk_start in (0..total_prompt).step_by(PROMPT_BATCH_SIZE) {
+    for chunk_start in (evaluate_from..total_prompt).step_by(PROMPT_BATCH_SIZE) {
         batch.clear();
         let chunk_end = (chunk_start + PROMPT_BATCH_SIZE).min(total_prompt);
         for (idx_in_chunk, &tok) in prompt_tokens[chunk_start..chunk_end].iter().enumerate() {
