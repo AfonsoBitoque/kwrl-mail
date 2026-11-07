@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { resolveFriendlyModelName } from '../services/tauriBridge';
+import { openExternalUrl, resolveFriendlyModelName } from '../services/tauriBridge';
 import { AccountView, DiscoveredModel, LocalModelStatus } from '../types/corvo';
 import { IconCheck, IconClose, IconPlus } from './Icons';
 
@@ -11,6 +11,8 @@ interface PrivacySettingsDrawerProps {
   userSignatureName?: string;
   modelStatus: LocalModelStatus;
   availableModels: DiscoveredModel[];
+  oauthClientId?: string | null;
+  oauthSecretInKeychain?: boolean;
   onClose: () => void;
   onSaveRuntimeSettings: (params: {
     pollIntervalSecs: number;
@@ -29,6 +31,7 @@ interface PrivacySettingsDrawerProps {
   }) => Promise<void>;
   onDisconnectAccount: (email: string) => Promise<void>;
   onAddAccount?: () => void;
+  onSaveCredentials?: (clientId: string, clientSecret: string) => Promise<void>;
 }
 
 export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
@@ -36,9 +39,11 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
   accounts,
   pollIntervalSecs,
   masterAiKillSwitch,
-  userSignatureName = 'Afonso',
+  userSignatureName = '',
   modelStatus,
   availableModels,
+  oauthClientId,
+  oauthSecretInKeychain,
   onClose,
   onSaveRuntimeSettings,
   onUpdateSignatureName,
@@ -46,12 +51,20 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
   onUpdateAccountPolicy,
   onDisconnectAccount,
   onAddAccount,
+  onSaveCredentials,
 }) => {
   const [pollSecs, setPollSecs] = useState(pollIntervalSecs);
   const [aiActive, setAiActive] = useState(!masterAiKillSwitch);
   const [sigName, setSigName] = useState(userSignatureName);
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
+
+  // Gestão de Credenciais Google Cloud BYOK
+  const [showOauthForm, setShowOauthForm] = useState(false);
+  const [rawOauthInput, setRawOauthInput] = useState('');
+  const [oauthSecretInput, setOauthSecretInput] = useState('');
+  const [isSavingOauth, setIsSavingOauth] = useState(false);
+  const [oauthError, setOauthError] = useState<string | null>(null);
 
   useEffect(() => {
     setPollSecs(pollIntervalSecs);
@@ -121,6 +134,31 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
       }
     } catch (err) {
       setFeedbackError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handleSaveOauthCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onSaveCredentials) return;
+    const trimmedInput = rawOauthInput.trim();
+    const isJson = trimmedInput.startsWith('{');
+    if (!trimmedInput || (!isJson && !oauthSecretInput.trim())) return;
+
+    setIsSavingOauth(true);
+    setOauthError(null);
+    try {
+      await onSaveCredentials(
+        trimmedInput,
+        isJson ? 'from_json' : oauthSecretInput.trim()
+      );
+      setRawOauthInput('');
+      setOauthSecretInput('');
+      setShowOauthForm(false);
+      flashSaved('Chaves Google Cloud atualizadas com sucesso no Keychain!');
+    } catch (err) {
+      setOauthError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsSavingOauth(false);
     }
   };
 
@@ -484,6 +522,151 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
             <div style={{ fontSize: '11px', color: 'var(--faint)' }}>
               O suporte nativo a <strong>Microsoft 365 / Outlook</strong> (via Microsoft Graph API) e servidores <strong>IMAP</strong> está previsto para uma versão futura.
             </div>
+          </div>
+        </section>
+
+        {/* Secção 4: Credenciais Google Cloud (Modelo Open Source / BYOK) */}
+        <section
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+            borderTop: '1px solid var(--hairline)',
+            paddingTop: 'var(--space-4)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span className="type-kicker">4. Chaves Google Cloud (OAuth 2.0 / BYOK)</span>
+            {oauthClientId && oauthSecretInKeychain && (
+              <span className="ai-badge-transparent">
+                <IconCheck size={12} />
+                <span>Ativo no Keychain</span>
+              </span>
+            )}
+          </div>
+
+          <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
+            O Corvo adota o modelo <em>Bring Your Own Keys</em> (BYOK): cada utilizador utiliza a sua própria credencial gratuita do Google Cloud, eliminando intermediários, quotas partilhadas e custos de auditoria comercial.
+          </p>
+
+          <div
+            style={{
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-sm)',
+              border: '1px solid var(--hairline-strong)',
+              backgroundColor: 'var(--surface-sunken)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: '0.8125rem', fontWeight: 600 }}>
+                  {oauthClientId ? 'ID de Cliente Configurado' : 'Nenhuma chave configurada'}
+                </div>
+                <div className="type-mono-meta" style={{ marginTop: '2px' }}>
+                  {oauthClientId
+                    ? `${oauthClientId.slice(0, 18)}…`
+                    : 'Configura uma chave para ligar contas Gmail'}
+                </div>
+              </div>
+
+              {onSaveCredentials && (
+                <button
+                  type="button"
+                  className="quiet-btn"
+                  onClick={() => setShowOauthForm(!showOauthForm)}
+                >
+                  {showOauthForm ? 'Fechar' : oauthClientId ? 'Substituir Chave' : 'Configurar Chave'}
+                </button>
+              )}
+            </div>
+
+            {showOauthForm && onSaveCredentials && (
+              <form
+                onSubmit={(e) => void handleSaveOauthCredentials(e)}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  borderTop: '1px solid var(--hairline)',
+                  paddingTop: '10px',
+                  marginTop: '4px',
+                }}
+              >
+                <div style={{ display: 'flex', gap: '10px', fontSize: '0.75rem', marginBottom: '4px' }}>
+                  <button
+                    type="button"
+                    className="quiet-btn"
+                    style={{ padding: 0, fontSize: '0.75rem', textDecoration: 'underline' }}
+                    onClick={() => void openExternalUrl('https://console.cloud.google.com/apis/library/gmail.googleapis.com')}
+                  >
+                    1. Ativar Gmail API ↗
+                  </button>
+                  <button
+                    type="button"
+                    className="quiet-btn"
+                    style={{ padding: 0, fontSize: '0.75rem', textDecoration: 'underline' }}
+                    onClick={() => void openExternalUrl('https://console.cloud.google.com/apis/credentials')}
+                  >
+                    2. Criar Credencial OAuth (Desktop app) ↗
+                  </button>
+                </div>
+
+                <textarea
+                  className="form-field-input"
+                  rows={3}
+                  style={{
+                    resize: 'vertical',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '0.75rem',
+                  }}
+                  placeholder='Cola aqui o conteúdo do ficheiro JSON descarregado da Google (ou apenas o Client ID)…'
+                  value={rawOauthInput}
+                  onChange={(e) => setRawOauthInput(e.target.value)}
+                />
+
+                {!rawOauthInput.trim().startsWith('{') && rawOauthInput.trim().length > 0 && (
+                  <input
+                    type="password"
+                    className="form-field-input"
+                    placeholder="Client Secret (ex: GOCSPX-...)"
+                    value={oauthSecretInput}
+                    onChange={(e) => setOauthSecretInput(e.target.value)}
+                  />
+                )}
+
+                {oauthError && (
+                  <div style={{ color: 'var(--tone-warning-ink)', fontSize: '0.75rem' }}>
+                    {oauthError}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                  <button
+                    type="submit"
+                    className="primary-solid-btn"
+                    disabled={
+                      isSavingOauth ||
+                      !rawOauthInput.trim() ||
+                      (!rawOauthInput.trim().startsWith('{') && !oauthSecretInput.trim())
+                    }
+                    style={{ padding: '6px 14px', fontSize: '0.78rem' }}
+                  >
+                    {isSavingOauth ? 'A guardar no Keychain…' : 'Guardar no Keychain'}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="quiet-btn"
+                    onClick={() => setShowOauthForm(false)}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </section>
       </div>

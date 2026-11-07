@@ -51,36 +51,44 @@ npm run tauri:build
 
 ---
 
-## 2. Configurar Credenciais Google OAuth 2.0 ("Desktop app")
+## 3. Configurar Credenciais Google OAuth 2.0 (Modelo BYOK — Chave Própria Gratuita)
 
-1. Acede à **Google Cloud Console** → **APIs & Services** → **Library** e ativa a **Gmail API**.
-2. Em **OAuth consent screen**, configura a aplicação e adiciona o teu endereço Google aos utilizadores de teste (enquanto em modo *Testing*).
-3. Em **Credentials** → **Create Credentials** → **OAuth client ID**, escolhe o tipo **Desktop app** (permite qualquer porta efémera em `http://127.0.0.1:<porta>` sem pré-registo de porta fixa).
+O Corvo adota o modelo **BYOK (*Bring Your Own Keys*)**, o padrão da indústria para aplicações de e-mail de código aberto e privacidade soberana (utilizado pelo *Thunderbird*, *Mailspring*, *Himalaya* e *Mutt*):
+- **Porquê?** A Google exige auditorias comerciais pagas (CASA Tier 2/3) de milhares de euros anuais para aplicações públicas com escopos de e-mail restritos. Com o modelo BYOK, cada utilizador cria o seu próprio projeto pessoal gratuito no Google Cloud: custa **0 €**, tem quota dedicada e garante **zero servidores intermediários**.
+
+### Passo a Passo Rápido (2 Minutos):
+1. Acede à [Google Cloud Console](https://console.cloud.google.com/apis/library/gmail.googleapis.com) e clica em **Ativar** (Enable) a **Gmail API**.
+2. No menu **OAuth consent screen** (Ecrã de consentimento OAuth):
+   - Escolhe tipo *External* (ou *Internal* para Google Workspace).
+   - Introduz o nome da app (ex.: `Corvo Mail`) e o teu e-mail de contacto.
+   - No separador **Test users** (Utilizadores de teste), adiciona o teu endereço Gmail.
+3. Em [Credentials](https://console.cloud.google.com/apis/credentials) → **Create Credentials** → **OAuth client ID**:
+   - Tipo de aplicação: **Desktop app** (Aplicação de Computador).
+   - Clica em **Create** e depois no ícone de **Download JSON**.
 4. Na janela do **Corvo**:
-   - Introduz o `Client ID` e o `Client Secret` (o segredo é guardado exclusivamente no **OS Keychain** via crate `keyring`).
-   - Escolhe o nível de privilégio: `gmail.modify + gmail.labels` (leitura e atualização de estado lido, **sem** `gmail.send`) ou `gmail.readonly`.
-   - Clica em **Autenticar conta Google no browser do sistema**: o Corvo gera um par PKCE `S256` (32 bytes aleatórios), escuta apenas um pedido em `127.0.0.1:0`, valida `state` em tempo constante, fecha o listener imediatamente e armazena o `refresh_token` no Keychain (mantendo o `access_token` apenas em RAM volátil `Zeroizing<String>`).
+   - Abre o ficheiro JSON num editor de texto, copia todo o conteúdo e cola na caixa de texto inicial (ou introduz o *Client ID* e *Client Secret*).
+   - Clica em **Guardar e Continuar com Google**: o Corvo escuta a resposta na porta loopback local efémera, fecha o listener imediatamente e armazena o `refresh_token` exclusivamente no **Keychain** do sistema operativo.
 
 ---
 
-## 3. Configurar Modelo Local `.gguf` (`llama.cpp` Nativo)
+## 4. Configurar Modelo Local `.gguf` (`llama.cpp` Nativo)
 
-Abre **Segurança, Modelo & Contas** na barra lateral inferior:
+Abre **Definições & Privacidade** na barra lateral inferior:
 - **Registo Offline (Zero Rede — Recomendado):** indica o caminho absoluto para um ficheiro `.gguf` quantizado em 4-bit (ex.: `Qwen2.5-3B-Instruct-Q4_K_M.gguf` ou `Phi-4-mini-instruct-Q4_K_M.gguf`). O backend valida os magic bytes `GGUF` e calcula o SHA-256 em blocos de 64 KB antes de autorizar o carregamento.
 - **Transferência Verificada (Opcional):** indica um URL HTTPS direto `.gguf` e o checksum SHA-256 oficial obrigatório; se o hash divergir, o ficheiro temporário é eliminado antes de qualquer leitura pelo `llama.cpp`.
 
 ---
 
-## 4. Atalhos de Teclado
+## 5. Atalhos de Teclado
 
-- `⌘K` / `Ctrl+K` — Focar **Pesquisa Semântica** sobre o cache SQLite (ex.: `e-mails do João sobre orçamento Q3`)
-- `⌘J` / `Ctrl+J` — Mostrar ou ocultar a coluna lateral discreta de **Resumo Calmo & Sugestões CDLR**
+- `⌘K` / `Ctrl+K` — Focar **Pesquisa Rápida** sobre o cache SQLite local
+- `⌘J` / `Ctrl+J` — Mostrar ou ocultar a coluna lateral discreta de **Resumo Calmo & Assistente IA**
 - `⌘\` / `Ctrl+\` — Alternar **Modo Foco** (recolhe navegação lateral, dedicando >80% do ecrã à leitura)
 - `J` / `K` — Percorrer conversas na lista sem tirar as mãos do teclado
 
 ---
 
-## 5. Estrutura do Código
+## 6. Estrutura do Código
 
 - `src-tauri/src/secure_store.rs` — Cofre OS Keychain (`keyring`) para `refresh_token` e cache volátil em RAM (`Zeroizing<String>`) para `access_token`.
 - `src-tauri/src/oauth.rs` — Fluxo OAuth 2.0 Desktop (RFC 8252 + RFC 7636 PKCE `S256`), listener loopback efémero `127.0.0.1:0`, validação CSRF constante e purga automática em `invalid_grant`.
@@ -90,3 +98,10 @@ Abre **Segurança, Modelo & Contas** na barra lateral inferior:
 - `src-tauri/src/bin/corvo_llm_worker.rs` & `src-tauri/src/llm.rs` — Processo sidecar isolado (`env_clear()`) com `llama-cpp-2` + Metal (`n_gpu_layers = 99`), `Flash-Attn`, cache KV `Q8_0`, *lazy loading*, descarga automática após 10 min de inatividade e *streaming* de eventos `ai-token`.
 - `src-tauri/tauri.conf.json` & `src-tauri/capabilities/` — Hardening Tauri v2 (`freezePrototype: true`, CSP estrita sem CDNs externos e *capabilities* separadas por janela).
 - `public/fonts/` & `src/styles/` — Tipografia auto-alojada (`Fraunces`, `IBM Plex Sans`, `IBM Plex Mono`) e sistema de design editorial anti-slop.
+
+---
+
+## 7. Contribuição e Licença
+
+- Consulta o [Guia de Contribuição (CONTRIBUTING.md)](CONTRIBUTING.md) para detalhes sobre configuração e padrões de código.
+- Este projeto está licenciado sob a [Licença MIT](LICENSE).

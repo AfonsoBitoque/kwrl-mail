@@ -116,7 +116,7 @@ export const App: React.FC = () => {
   const [accounts, setAccounts] = useState<AccountView[]>([]);
   const [pollIntervalSecs, setPollIntervalSecs] = useState<number>(30);
   const [masterAiKillSwitch, setMasterAiKillSwitch] = useState<boolean>(false);
-  const [userSignatureName, setUserSignatureName] = useState<string>('Afonso');
+  const [userSignatureName, setUserSignatureName] = useState<string>('');
   const [modelStatus, setModelStatus] = useState<LocalModelStatus>(DEFAULT_MODEL_STATUS);
   const [availableModels, setAvailableModels] = useState<DiscoveredModel[]>([]);
 
@@ -191,7 +191,7 @@ export const App: React.FC = () => {
     setAccounts(boot.accounts);
     setPollIntervalSecs(boot.pollIntervalSecs);
     setMasterAiKillSwitch(boot.masterAiKillSwitch);
-    setUserSignatureName(boot.userSignatureName || 'Afonso');
+    setUserSignatureName(boot.userSignatureName || '');
     setModelStatus(boot.modelStatus);
     setAvailableModels(boot.availableModels ?? []);
     setCustomMailboxes(boot.customMailboxes ?? []);
@@ -1468,7 +1468,13 @@ export const App: React.FC = () => {
         userSignatureName={userSignatureName}
         modelStatus={modelStatus}
         availableModels={availableModels}
+        oauthClientId={oauthClientId}
+        oauthSecretInKeychain={oauthSecretInKeychain}
         onClose={() => setSettingsOpen(false)}
+        onSaveCredentials={async (cid, sec) => {
+          await saveOAuthClientCredentials(cid, sec);
+          await refreshBootstrap();
+        }}
         onSaveRuntimeSettings={async (params) => {
           const nextStatus = await updateRuntimeSettings(params);
           setPollIntervalSecs(params.pollIntervalSecs);

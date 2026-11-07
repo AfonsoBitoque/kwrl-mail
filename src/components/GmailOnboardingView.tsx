@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { GmailScopeMode } from '../types/corvo';
 import { CorvoMark, IconCheck, IconGoogleMark } from './Icons';
+import { openExternalUrl } from '../services/tauriBridge';
 
 interface GmailOnboardingViewProps {
   savedClientId: string | null;
@@ -21,41 +22,43 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
 }) => {
   const [accountLabel, setAccountLabel] = useState('');
   const [scopeMode, setScopeMode] = useState<GmailScopeMode>('modify-and-labels');
-  const [showCreatorSetup, setShowCreatorSetup] = useState(false);
+  const [manualSetupOpen, setManualSetupOpen] = useState(false);
 
-  // Permite ou colar o ficheiro JSON inteiro da Google, ou Client ID + Secret
+  // Permite colar o ficheiro JSON inteiro da Google, ou Client ID + Secret
   const [rawJsonOrId, setRawJsonOrId] = useState(savedClientId ?? '');
   const [clientSecret, setClientSecret] = useState('');
   const [savingAndStarting, setSavingAndStarting] = useState(false);
+  const [localFeedback, setLocalFeedback] = useState<string | null>(null);
 
   const credentialsReady = Boolean(savedClientId) && secretInKeychain;
+  const showSetup = !credentialsReady || manualSetupOpen;
 
   const handleContinueWithGoogle = async () => {
     if (!credentialsReady) {
-      // Tenta primeiro iniciar (caso o utilizador tenha acabado de guardar o .env ou o JSON na pasta)
-      // Se ainda faltar a chave da app, abre suavemente o passo único do criador.
-      setShowCreatorSetup(true);
-      await onStartOAuth(scopeMode, accountLabel);
+      setManualSetupOpen(true);
       return;
     }
     await onStartOAuth(scopeMode, accountLabel);
   };
 
-  const handleSaveCreatorKeyAndContinue = async (e: React.FormEvent) => {
+  const handleSaveCredentialsAndContinue = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedInput = rawJsonOrId.trim();
     const isJsonPaste = trimmedInput.startsWith('{');
     if (!trimmedInput || (!isJsonPaste && !clientSecret.trim())) return;
 
     setSavingAndStarting(true);
+    setLocalFeedback(null);
     try {
       await onSaveCredentials(
         trimmedInput,
         isJsonPaste ? 'from_json' : clientSecret.trim()
       );
       setClientSecret('');
-      setShowCreatorSetup(false);
+      setManualSetupOpen(false);
       await onStartOAuth(scopeMode, accountLabel);
+    } catch (err) {
+      setLocalFeedback(err instanceof Error ? err.message : String(err));
     } finally {
       setSavingAndStarting(false);
     }
@@ -65,15 +68,17 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
 
   return (
     <main className="corvo-reading-pane" aria-label="Iniciar sessão com Google">
-      <article className="reading-article" style={{ maxWidth: '540px' }}>
+      <article className="reading-article" style={{ maxWidth: '580px' }}>
         <header className="reading-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <CorvoMark size={20} />
-            <span className="type-kicker">Corvo · Correio Local</span>
+            <span className="type-kicker">Corvo · Correio Local & Código Aberto</span>
           </div>
 
           <h1 className="type-thread-subject" style={{ marginTop: '10px' }}>
-            Entra na tua conta Gmail.
+            {showSetup
+              ? 'Configurar Credenciais do Gmail'
+              : 'Entra na tua conta Gmail'}
           </h1>
 
           <p
@@ -84,114 +89,357 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
               color: 'var(--ink-secondary)',
             }}
           >
-            Abre o início de sessão oficial da Google no teu browser habitual. Os teus e-mails ficam
-            guardados localmente neste computador e a sessão protegida no Keychain do macOS.
+            {showSetup
+              ? 'O Corvo é 100% privado, local e sem servidores intermédios. Para ligares o Gmail com total soberania e sem custos de auditoria comercial, utiliza a tua própria chave gratuita da Google Cloud.'
+              : 'Abre o início de sessão oficial da Google no teu browser habitual. Os teus e-mails ficam guardados localmente neste computador e a sessão protegida no Keychain do sistema.'}
           </p>
         </header>
 
-        {/* Botão Direto "Continuar com Google" */}
-        <section
-          style={{
-            marginTop: 'var(--space-6)',
-            paddingTop: 'var(--space-5)',
-            borderTop: '1px solid var(--hairline)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '14px',
-          }}
-        >
-          <div>
-            <button
-              type="button"
-              className="primary-solid-btn"
-              style={{
-                padding: '10px 18px',
-                fontSize: '0.875rem',
-                gap: '10px',
-              }}
-              disabled={isAuthenticating || savingAndStarting}
-              onClick={() => void handleContinueWithGoogle()}
-            >
-              <IconGoogleMark size={15} />
-              <span>
-                {isAuthenticating
-                  ? 'A aguardar confirmação no browser…'
-                  : 'Continuar com Google'}
-              </span>
-            </button>
-          </div>
-
-          {/* Opções opcionais discretas (nome da conta / modo só leitura) */}
-          <details style={{ marginTop: '4px' }}>
-            <summary
-              style={{
-                fontSize: '0.78rem',
-                color: 'var(--ink-tertiary)',
-                cursor: 'pointer',
-                userSelect: 'none',
-              }}
-            >
-              Opções opcionais (etiqueta da conta e permissões)
-            </summary>
-
+        {/* MODO 1: Chaves Prontas -> Ecrã de Login Direto */}
+        {!showSetup && (
+          <section
+            style={{
+              marginTop: 'var(--space-6)',
+              paddingTop: 'var(--space-5)',
+              borderTop: '1px solid var(--hairline)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '14px',
+            }}
+          >
+            {/* Indicador de chaves ativas */}
             <div
               style={{
-                marginTop: '12px',
                 display: 'flex',
-                flexDirection: 'column',
-                gap: '10px',
-                maxWidth: '400px',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--surface-sunken)',
+                fontSize: '0.8rem',
+                color: 'var(--ink-secondary)',
               }}
             >
-              <div>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: '0.75rem',
-                    color: 'var(--ink-secondary)',
-                    marginBottom: '4px',
-                  }}
-                >
-                  Nome na barra lateral (opcional)
-                </label>
-                <input
-                  type="text"
-                  className="form-field-input"
-                  placeholder="Ex: Pessoal, Trabalho"
-                  value={accountLabel}
-                  onChange={(e) => setAccountLabel(e.target.value)}
-                />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span className="ai-badge-transparent">
+                  <IconCheck size={12} />
+                  <span>Chave Própria Configurada</span>
+                </span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem' }}>
+                  {savedClientId ? `${savedClientId.slice(0, 12)}…` : ''}
+                </span>
               </div>
+              <button
+                type="button"
+                className="quiet-btn"
+                style={{ fontSize: '0.75rem', padding: '2px 6px' }}
+                onClick={() => setManualSetupOpen(true)}
+              >
+                Alterar
+              </button>
+            </div>
 
-              <div>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: '0.75rem',
-                    color: 'var(--ink-secondary)',
-                    marginBottom: '4px',
-                  }}
-                >
-                  Nível de acesso
-                </label>
-                <select
-                  className="form-field-select"
-                  value={scopeMode}
-                  onChange={(e) => setScopeMode(e.target.value as GmailScopeMode)}
-                >
-                  <option value="modify-and-labels">
-                    Padrão (ler e marcar como lido)
-                  </option>
-                  <option value="read-only">
-                    Apenas leitura
-                  </option>
-                </select>
+            <div>
+              <button
+                type="button"
+                className="primary-solid-btn"
+                style={{
+                  padding: '10px 18px',
+                  fontSize: '0.875rem',
+                  gap: '10px',
+                }}
+                disabled={isAuthenticating || savingAndStarting}
+                onClick={() => void handleContinueWithGoogle()}
+              >
+                <IconGoogleMark size={15} />
+                <span>
+                  {isAuthenticating
+                    ? 'A aguardar confirmação no browser…'
+                    : 'Continuar com Google'}
+                </span>
+              </button>
+            </div>
+
+            {/* Opções opcionais (nome da conta / modo só leitura) */}
+            <details style={{ marginTop: '4px' }}>
+              <summary
+                style={{
+                  fontSize: '0.78rem',
+                  color: 'var(--ink-tertiary)',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                }}
+              >
+                Opções opcionais (etiqueta da conta e permissões)
+              </summary>
+
+              <div
+                style={{
+                  marginTop: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  maxWidth: '400px',
+                }}
+              >
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: '0.75rem',
+                      color: 'var(--ink-secondary)',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    Nome na barra lateral (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    className="form-field-input"
+                    placeholder="Ex: Pessoal, Trabalho"
+                    value={accountLabel}
+                    onChange={(e) => setAccountLabel(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: '0.75rem',
+                      color: 'var(--ink-secondary)',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    Nível de acesso
+                  </label>
+                  <select
+                    className="form-field-select"
+                    value={scopeMode}
+                    onChange={(e) => setScopeMode(e.target.value as GmailScopeMode)}
+                  >
+                    <option value="modify-and-labels">
+                      Padrão (ler e marcar como lido)
+                    </option>
+                    <option value="read-only">
+                      Apenas leitura
+                    </option>
+                  </select>
+                </div>
+              </div>
+            </details>
+          </section>
+        )}
+
+        {/* MODO 2: Assistente Guiado de Configuração BYOK (3 Passos) */}
+        {showSetup && (
+          <section
+            style={{
+              marginTop: 'var(--space-6)',
+              paddingTop: 'var(--space-5)',
+              borderTop: '1px solid var(--hairline)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+            }}
+          >
+            {/* Passo 1 */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '12px',
+                padding: '12px 14px',
+                border: '1px solid var(--hairline)',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--surface-sunken)',
+              }}
+            >
+              <div
+                style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--ink-primary)',
+                  color: 'var(--surface-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  flexShrink: 0,
+                }}
+              >
+                1
+              </div>
+              <div style={{ flex: 1 }}>
+                <strong style={{ fontSize: '0.85rem', display: 'block', marginBottom: '4px' }}>
+                  Ativar a Gmail API na Google Cloud
+                </strong>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
+                  Acede à consola gratuita da Google Cloud, cria um projeto (ex: <em>Corvo Mail</em>) e clica em <strong>Ativar</strong> (Enable).
+                </p>
+                <div style={{ marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    className="quiet-btn"
+                    style={{ fontSize: '0.78rem', textDecoration: 'underline' }}
+                    onClick={() => void openExternalUrl('https://console.cloud.google.com/apis/library/gmail.googleapis.com')}
+                  >
+                    Abrir Google Cloud Console ↗
+                  </button>
+                </div>
               </div>
             </div>
-          </details>
-        </section>
 
-        {errorMessage && !showCreatorSetup && (
+            {/* Passo 2 */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '12px',
+                padding: '12px 14px',
+                border: '1px solid var(--hairline)',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--surface-sunken)',
+              }}
+            >
+              <div
+                style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--ink-primary)',
+                  color: 'var(--surface-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  flexShrink: 0,
+                }}
+              >
+                2
+              </div>
+              <div style={{ flex: 1 }}>
+                <strong style={{ fontSize: '0.85rem', display: 'block', marginBottom: '4px' }}>
+                  Criar Credencial do tipo &ldquo;Desktop app&rdquo;
+                </strong>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
+                  Em <strong>Credenciais</strong> → <strong>Criar Credenciais</strong> → <strong>ID do cliente OAuth</strong>, escolhe o tipo <strong>Aplicação de Computador</strong> (Desktop app). No ecrã de consentimento, adiciona o teu e-mail em <em>Test users</em> e descarrega o ficheiro JSON.
+                </p>
+                <div style={{ marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    className="quiet-btn"
+                    style={{ fontSize: '0.78rem', textDecoration: 'underline' }}
+                    onClick={() => void openExternalUrl('https://console.cloud.google.com/apis/credentials')}
+                  >
+                    Abrir Ecrã de Credenciais ↗
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Passo 3 */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '12px',
+                padding: '12px 14px',
+                border: '1px solid var(--hairline)',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--surface-sunken)',
+              }}
+            >
+              <div
+                style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--ink-primary)',
+                  color: 'var(--surface-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  flexShrink: 0,
+                }}
+              >
+                3
+              </div>
+              <div style={{ flex: 1 }}>
+                <strong style={{ fontSize: '0.85rem', display: 'block', marginBottom: '4px' }}>
+                  Colar o ficheiro JSON descarregado
+                </strong>
+                <p style={{ margin: '0 0 8px 0', fontSize: '0.8rem', color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
+                  Abre o ficheiro JSON descarregado num editor de texto, copia todo o conteúdo e cola aqui:
+                </p>
+
+                <form
+                  onSubmit={(e) => void handleSaveCredentialsAndContinue(e)}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
+                >
+                  <textarea
+                    className="form-field-input"
+                    rows={4}
+                    style={{
+                      resize: 'vertical',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '0.75rem',
+                      lineHeight: 1.4,
+                    }}
+                    placeholder='Cola aqui o JSON da Google (começa por { "installed": ... }) ou o Client ID…'
+                    value={rawJsonOrId}
+                    onChange={(e) => setRawJsonOrId(e.target.value)}
+                  />
+
+                  {!isPastingJson && rawJsonOrId.trim().length > 0 && (
+                    <input
+                      type="password"
+                      className="form-field-input"
+                      placeholder="Client Secret (ex: GOCSPX-...)"
+                      value={clientSecret}
+                      onChange={(e) => setClientSecret(e.target.value)}
+                    />
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                    <button
+                      type="submit"
+                      className="primary-solid-btn"
+                      disabled={
+                        savingAndStarting ||
+                        !rawJsonOrId.trim() ||
+                        (!isPastingJson && !clientSecret.trim())
+                      }
+                      style={{ padding: '8px 16px', fontSize: '0.8125rem' }}
+                    >
+                      <IconCheck size={14} />
+                      <span>
+                        {savingAndStarting
+                          ? 'A guardar e a ligar…'
+                          : 'Guardar e Continuar com Google'}
+                      </span>
+                    </button>
+
+                    {credentialsReady && (
+                      <button
+                        type="button"
+                        className="quiet-btn"
+                        onClick={() => setManualSetupOpen(false)}
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Mensagens de erro */}
+        {(errorMessage || localFeedback) && (
           <div
             style={{
               marginTop: 'var(--space-5)',
@@ -203,109 +451,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
               color: 'var(--tone-warning-ink)',
             }}
           >
-            {errorMessage}
-          </div>
-        )}
-
-        {/* Gaveta de configuração única do criador da app — só abre se ainda não existir .env / JSON */}
-        {showCreatorSetup && (
-          <section
-            style={{
-              marginTop: 'var(--space-6)',
-              paddingTop: 'var(--space-5)',
-              borderTop: '1px solid var(--hairline)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span className="type-kicker">Configuração única do criador da app (2 min)</span>
-              {credentialsReady && (
-                <span className="ai-badge-transparent">
-                  <IconCheck size={12} />
-                  <span>Ativo</span>
-                </span>
-              )}
-            </div>
-
-            <p
-              style={{
-                margin: 0,
-                fontSize: '0.8125rem',
-                lineHeight: 1.55,
-                color: 'var(--ink-secondary)',
-              }}
-            >
-              Para a Google reconhecer a tua app <strong>Corvo</strong>, descarrega 1 única vez o
-              ficheiro JSON gratuito (tipo <em>Desktop app</em>) na Google Cloud e larga-o na pasta
-              do projeto <strong>ou</strong> cola o conteúdo do JSON diretamente aqui:
-            </p>
-
-            <form
-              onSubmit={(e) => void handleSaveCreatorKeyAndContinue(e)}
-              style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
-            >
-              <textarea
-                className="form-field-input"
-                rows={3}
-                style={{ resize: 'vertical', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}
-                placeholder='Cola aqui o conteúdo do ficheiro JSON descarregado da Google (ou apenas o Client ID)…'
-                value={rawJsonOrId}
-                onChange={(e) => setRawJsonOrId(e.target.value)}
-              />
-
-              {!isPastingJson && rawJsonOrId.trim().length > 0 && (
-                <input
-                  type="password"
-                  className="form-field-input"
-                  placeholder="Client Secret (ex: GOCSPX-...)"
-                  value={clientSecret}
-                  onChange={(e) => setClientSecret(e.target.value)}
-                />
-              )}
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
-                <button
-                  type="submit"
-                  className="primary-solid-btn"
-                  disabled={
-                    savingAndStarting ||
-                    !rawJsonOrId.trim() ||
-                    (!isPastingJson && !clientSecret.trim())
-                  }
-                >
-                  <span>
-                    {savingAndStarting
-                      ? 'A guardar e a abrir Google…'
-                      : 'Guardar uma vez e Continuar com Google'}
-                  </span>
-                </button>
-
-                <button
-                  type="button"
-                  className="quiet-btn"
-                  onClick={() => setShowCreatorSetup(false)}
-                >
-                  Fechar
-                </button>
-              </div>
-            </form>
-          </section>
-        )}
-
-        {!showCreatorSetup && (
-          <div style={{ marginTop: 'var(--space-6)' }}>
-            <button
-              type="button"
-              className="quiet-btn"
-              style={{ padding: 0, fontSize: '0.75rem', color: 'var(--ink-tertiary)' }}
-              onClick={() => setShowCreatorSetup(true)}
-            >
-              {credentialsReady
-                ? 'Chave da app configurada · alterar'
-                : 'Primeira vez como criador da app? Configurar chave Google'}
-            </button>
+            {localFeedback || errorMessage}
           </div>
         )}
       </article>

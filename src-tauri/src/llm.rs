@@ -650,7 +650,10 @@ impl LlmSupervisor {
             ));
         }
 
-        let user_sig = sender_name.unwrap_or("Afonso");
+        let user_sig = sender_name
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .unwrap_or("Utilizador");
         let recipient_display_name = crate::prompt_guard::resolve_recipient_display_name(recipient, Some(user_sig));
 
         let (greeting_directive, greeting_sample) = match recipient_display_name.as_deref() {

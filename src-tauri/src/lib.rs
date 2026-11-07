@@ -1495,6 +1495,15 @@ async fn download_attachment(
 }
 
 #[tauri::command]
+async fn open_external_url(url: String) -> Result<(), String> {
+    if url.starts_with("https://") || url.starts_with("http://") {
+        open::that(&url).map_err(|e| e.to_string())
+    } else {
+        Err("URL inválido: apenas HTTPS e HTTP são permitidos.".to_string())
+    }
+}
+
+#[tauri::command]
 async fn get_known_contacts(
     state: State<'_, CorvoState>,
 ) -> Result<Vec<crate::db::KnownContactDto>, String> {
@@ -1895,7 +1904,15 @@ async fn rewrite_text_with_ai(
         .get_kv(KV_USER_SIGNATURE_NAME)
         .ok()
         .flatten()
-        .unwrap_or_else(|| "Afonso".to_string());
+        .unwrap_or_else(|| {
+            let primary_email = state
+                .db
+                .list_accounts()
+                .ok()
+                .and_then(|accs| accs.into_iter().next().map(|a| a.email))
+                .unwrap_or_default();
+            crate::prompt_guard::resolve_friendly_user_name(&primary_email, None)
+        });
 
     state
         .llm
@@ -2317,6 +2334,7 @@ pub fn run() {
             search_messages_fts,
             export_thread_eml,
             add_custom_account,
+            open_external_url,
         ])
         .run(tauri::generate_context!())
         .expect("Erro ao executar a aplicação desktop Corvo");

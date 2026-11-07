@@ -471,19 +471,19 @@ pub fn resolve_friendly_user_name(raw_account: &str, custom_display_name: Option
         return cached.to_string();
     }
 
-    // Extrai da parte local do email removendo números finais (ex: "afonsomiguel1237@gmail.com" -> "Afonso")
+    // Extrai da parte local do email removendo números finais (ex: "maria1237@gmail.com" -> "Maria")
     let local = raw_account
         .split('@')
         .next()
-        .unwrap_or("Afonso")
+        .unwrap_or("")
         .split('.')
         .next()
-        .unwrap_or("Afonso");
+        .unwrap_or("");
     let letters_only: String = local.chars().take_while(|c| c.is_alphabetic()).collect();
     if letters_only.len() >= 3 {
         capitalize_first_letter(&letters_only)
     } else {
-        "Afonso".to_string()
+        "Utilizador".to_string()
     }
 }
 

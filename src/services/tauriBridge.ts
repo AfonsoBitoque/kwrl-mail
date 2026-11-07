@@ -25,6 +25,14 @@ export async function getBootstrapState(): Promise<BootstrapState> {
   return invoke<BootstrapState>('get_bootstrap_state');
 }
 
+export async function openExternalUrl(url: string): Promise<void> {
+  if (!isRunningInsideTauri()) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  return invoke<void>('open_external_url', { url });
+}
+
 export async function saveOAuthClientCredentials(
   clientId: string,
   clientSecret: string
