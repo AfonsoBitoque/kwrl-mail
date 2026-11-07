@@ -296,7 +296,16 @@ impl LlmSupervisor {
         });
 
         let tmp_path = dest_path.with_extension("gguf.part");
-        let resp = http_client
+        // Cliente dedicado com timeout alargado (1 hora) e keepalive para modelos GGUF de vários gigabytes
+        let download_client = Client::builder()
+            .connect_timeout(Duration::from_secs(30))
+            .timeout(Duration::from_secs(3600))
+            .tcp_keepalive(Duration::from_secs(15))
+            .user_agent("CorvoMail/0.2.0 (Desktop; Linux/macOS)")
+            .build()
+            .unwrap_or_else(|_| http_client.clone());
+
+        let resp = download_client
             .get(download_url)
             .send()
             .await
