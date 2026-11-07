@@ -47,6 +47,13 @@ else
     echo "Todas as dependências do sistema já estão instaladas."
 fi
 
+# Se o utilizador utilizar rustup, garante que o toolchain está atualizado (requerido >= 1.90 pelas crates do Tauri)
+if command -v rustup &>/dev/null; then
+    echo "A atualizar Rust via rustup (Tauri v2 requer Rust >= 1.90)..."
+    rustup update stable || true
+    rustup default stable || true
+fi
+
 echo ""
 echo "[2/4] Escolha de aceleração de hardware para o motor de IA (llama.cpp):"
 echo "  1) CPU Multi-thread (Padrão: AVX2/AVX-512, compatível com todos os processadores)"
