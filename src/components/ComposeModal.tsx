@@ -146,11 +146,9 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
     prevOpenRef.current = open;
   }, [open, defaultAccountEmail, accounts, initialTo, initialCc, initialBcc, initialSubject, initialBody, initialAttachments]);
 
-  if (!open) return null;
-
   // Filtragem de contactos para autocomplete memoizada por campo ativo
   const activeSuggestions = useMemo(() => {
-    if (!activeAutocompleteField) return [];
+    if (!open || !activeAutocompleteField) return [];
     const query =
       activeAutocompleteField === 'to'
         ? toInput
@@ -162,7 +160,9 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
     return contacts
       .filter((c) => c.email.toLowerCase().includes(q) || c.displayName.toLowerCase().includes(q))
       .slice(0, 5);
-  }, [activeAutocompleteField, toInput, ccInput, bccInput, contacts]);
+  }, [open, activeAutocompleteField, toInput, ccInput, bccInput, contacts]);
+
+  if (!open) return null;
 
   const handleAddChip = (field: 'to' | 'cc' | 'bcc', rawValue: string) => {
     const trimmed = rawValue.trim().replace(/[,;]+$/, '');

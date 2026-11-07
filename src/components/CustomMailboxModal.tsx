@@ -20,6 +20,7 @@ export const CustomMailboxModal: React.FC<CustomMailboxModalProps> = ({
   const [name, setName] = useState('');
   const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const overlayMouseDownRef = useRef(false);
 
   useEffect(() => {
     if (initialMailbox) {
@@ -63,8 +64,6 @@ export const CustomMailboxModal: React.FC<CustomMailboxModalProps> = ({
     onSave(cleanName, selectedEmails);
     onClose();
   };
-
-  const overlayMouseDownRef = useRef(false);
 
   const handleOverlayMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     overlayMouseDownRef.current = e.target === e.currentTarget;
