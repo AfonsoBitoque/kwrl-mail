@@ -595,7 +595,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                   marginTop: '4px',
                 }}
               >
-                <div style={{ display: 'flex', gap: '10px', fontSize: '0.75rem', marginBottom: '4px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', fontSize: '0.75rem', marginBottom: '4px' }}>
                   <button
                     type="button"
                     className="quiet-btn"
@@ -608,9 +608,17 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                     type="button"
                     className="quiet-btn"
                     style={{ padding: 0, fontSize: '0.75rem', textDecoration: 'underline' }}
+                    onClick={() => void openExternalUrl('https://console.cloud.google.com/apis/credentials/consent')}
+                  >
+                    2. Adicionar Utilizadores de Teste (Público-alvo) ↗
+                  </button>
+                  <button
+                    type="button"
+                    className="quiet-btn"
+                    style={{ padding: 0, fontSize: '0.75rem', textDecoration: 'underline' }}
                     onClick={() => void openExternalUrl('https://console.cloud.google.com/apis/credentials')}
                   >
-                    2. Criar Credencial OAuth (Desktop app) ↗
+                    3. Criar Credencial Desktop app ↗
                   </button>
                 </div>
 

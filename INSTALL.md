@@ -119,3 +119,31 @@ A base de dados SQLite offline e os modelos locais GGUF respeitam as pastas padr
 - **Windows:** `%LOCALAPPDATA%\pt.corvo.mail\`
   - Modelos IA: `%LOCALAPPDATA%\pt.corvo.mail\models\`
   - Base de dados: `%LOCALAPPDATA%\pt.corvo.mail\corvo_cache.sqlite3`
+
+---
+
+## 🔑 Configuração das Credenciais Google Cloud (Modelo BYOK — Chave Própria Gratuita)
+
+O Corvo adota o modelo **BYOK (*Bring Your Own Keys*)**: para garantir privacidade total sem intermediários e sem necessidade de pagar auditorias anuais comerciais à Google (CASA), cada utilizador cria a sua própria credencial gratuita no Google Cloud:
+
+1. **Ativar a Gmail API:**
+   - Acede à [Google Cloud Console — Gmail API](https://console.cloud.google.com/apis/library/gmail.googleapis.com).
+   - Cria um projeto gratuito (ex.: `Corvo Mail`) e clica em **Ativar** (*Enable*).
+
+2. **Ecrã de Consentimento & Público-Alvo / Utilizadores de Teste (Passo Crítico):**
+   - No menu lateral, entra em [OAuth consent screen (Ecrã de consentimento OAuth)](https://console.cloud.google.com/apis/credentials/consent).
+   - Seleciona **Externo** (*External*) e preenche o nome da app (`Corvo`) e o teu e-mail.
+   - ⚠️ **MUITO IMPORTANTE (Público-alvo / Utilizadores de Teste):**
+     Na secção **Público-alvo** (*Audience*) ou **Utilizadores de teste** (*Test users*), clica obrigatoriamente em **"+ Adicionar utilizadores"** (*+ Add users*) e introduz todos os endereços Gmail que pretendes utilizar no Corvo.
+     *(Se não adicionares o teu e-mail nesta lista de utilizadores de teste, a Google recusará a ligação com `Erro 403: access_denied`).*
+
+3. **Criar Credencial do tipo "Aplicação de Computador" (Desktop app):**
+   - Vai a [Credentials (Credenciais)](https://console.cloud.google.com/apis/credentials).
+   - Clica em **+ Criar Credenciais** → **ID do cliente OAuth**.
+   - Tipo de aplicação: escolhe **Aplicação de Computador** (*Desktop app*).
+   - Clica em **Criar** e depois no botão de **Transferir JSON** (*Download JSON*).
+
+4. **Colar no Corvo:**
+   - Abre o ficheiro `.json` descarregado com qualquer editor de texto.
+   - Copia todo o conteúdo (começa por `{"installed": ...}`) e cola diretamente na janela do Corvo.
+   - Clica em **Guardar e Continuar com Google**: a tua sessão fica autenticada e as chaves protegidas no cofre do sistema operativo (Keychain / Secret Service).

@@ -54,20 +54,34 @@ npm run tauri:build
 ## 3. Configurar Credenciais Google OAuth 2.0 (Modelo BYOK — Chave Própria Gratuita)
 
 O Corvo adota o modelo **BYOK (*Bring Your Own Keys*)**, o padrão da indústria para aplicações de e-mail de código aberto e privacidade soberana (utilizado pelo *Thunderbird*, *Mailspring*, *Himalaya* e *Mutt*):
-- **Porquê?** A Google exige auditorias comerciais pagas (CASA Tier 2/3) de milhares de euros anuais para aplicações públicas com escopos de e-mail restritos. Com o modelo BYOK, cada utilizador cria o seu próprio projeto pessoal gratuito no Google Cloud: custa **0 €**, tem quota dedicada e garante **zero servidores intermediários**.
+- **Porquê?** A Google exige auditorias de segurança comerciais (CASA Tier 2/3) que custam milhares de euros anuais para aplicações públicas centralizadas. Com o modelo BYOK, cada utilizador cria o seu próprio projeto pessoal gratuito na Google Cloud: custa **0 €**, tem quota dedicada, nunca expira e garante **zero servidores intermediários**.
 
-### Passo a Passo Rápido (2 Minutos):
-1. Acede à [Google Cloud Console](https://console.cloud.google.com/apis/library/gmail.googleapis.com) e clica em **Ativar** (Enable) a **Gmail API**.
-2. No menu **OAuth consent screen** (Ecrã de consentimento OAuth):
-   - Escolhe tipo *External* (ou *Internal* para Google Workspace).
-   - Introduz o nome da app (ex.: `Corvo Mail`) e o teu e-mail de contacto.
-   - No separador **Test users** (Utilizadores de teste), adiciona o teu endereço Gmail.
-3. Em [Credentials](https://console.cloud.google.com/apis/credentials) → **Create Credentials** → **OAuth client ID**:
-   - Tipo de aplicação: **Desktop app** (Aplicação de Computador).
-   - Clica em **Create** e depois no ícone de **Download JSON**.
-4. Na janela do **Corvo**:
-   - Abre o ficheiro JSON num editor de texto, copia todo o conteúdo e cola na caixa de texto inicial (ou introduz o *Client ID* e *Client Secret*).
-   - Clica em **Guardar e Continuar com Google**: o Corvo escuta a resposta na porta loopback local efémera, fecha o listener imediatamente e armazena o `refresh_token` exclusivamente no **Keychain** do sistema operativo.
+### Passo a Passo Detalhado (2 Minutos):
+
+1. **Ativar a Gmail API:**
+   - Acede à [Google Cloud Console — Gmail API](https://console.cloud.google.com/apis/library/gmail.googleapis.com).
+   - Cria um projeto gratuito (ex.: `Corvo Mail`) e clica em **Ativar** (*Enable*).
+
+2. **Configurar o Ecrã de Consentimento & Público-Alvo (Passo Crítico):**
+   - No menu lateral esquerdo, acede a [OAuth consent screen (Ecrã de consentimento OAuth)](https://console.cloud.google.com/apis/credentials/consent).
+   - Seleciona o tipo de utilizador **Externo** (*External*) e clica em *Criar*.
+   - Preenche os campos obrigatórios básicos: **Nome da app** (`Corvo`) e o teu **E-mail de apoio**.
+   - ⚠️ **PASSO OBRIGATÓRIO (Público-alvo / Utilizadores de Teste):**
+     Como a app está em modo de desenvolvimento pessoal (*Testing*), a Google bloqueia o login de qualquer conta não registada.
+     No separador **Público-alvo** (*Audience*) ou **Utilizadores de teste** (*Test users*), clica obrigatoriamente em **"+ Adicionar utilizadores"** (*+ Add users*) e insere o teu endereço Gmail (e qualquer outra conta que queiras ligar no Corvo).
+     *(Se saltares este passo, a Google recusará o início de sessão com o erro `403: access_denied`).*
+
+3. **Criar a Credencial OAuth "Desktop app":**
+   - Acede a [Credentials (Credenciais)](https://console.cloud.google.com/apis/credentials).
+   - Clica em **+ Criar Credenciais** (*+ Create Credentials*) → **ID do cliente OAuth** (*OAuth client ID*).
+   - No campo **Tipo de aplicação**, escolhe obrigatoriamente **Aplicação de Computador** (*Desktop app*).
+   - Dá um nome (ex.: `Corvo Desktop`) e clica em **Criar**.
+   - Na janela de confirmação que abre, clica no botão **Transferir JSON** (*Download JSON*).
+
+4. **Ligar no Corvo:**
+   - Abre o ficheiro `.json` descarregado num editor de texto (Bloco de Notas, VS Code, etc.).
+   - Copia todo o texto (começa por `{"installed": ...}`) e cola na caixa de texto inicial do Corvo.
+   - Clica em **Guardar e Continuar com Google**: o Corvo abre o teu browser habitual para autorização e guarda o segredo com encriptação nativa no **Keychain do sistema operativo**.
 
 ---
 

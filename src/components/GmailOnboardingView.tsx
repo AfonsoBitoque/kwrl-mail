@@ -231,7 +231,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
           </section>
         )}
 
-        {/* MODO 2: Assistente Guiado de Configuração BYOK (3 Passos) */}
+        {/* MODO 2: Assistente Guiado de Configuração BYOK (4 Passos Claros) */}
         {showSetup && (
           <section
             style={{
@@ -276,7 +276,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                   Ativar a Gmail API na Google Cloud
                 </strong>
                 <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
-                  Acede à consola gratuita da Google Cloud, cria um projeto (ex: <em>Corvo Mail</em>) e clica em <strong>Ativar</strong> (Enable).
+                  Acede à Google Cloud Console, cria um projeto gratuito (ex: <em>Corvo Mail</em>) e clica em <strong>Ativar</strong> (Enable).
                 </p>
                 <div style={{ marginTop: '8px' }}>
                   <button
@@ -285,19 +285,19 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                     style={{ fontSize: '0.78rem', textDecoration: 'underline' }}
                     onClick={() => void openExternalUrl('https://console.cloud.google.com/apis/library/gmail.googleapis.com')}
                   >
-                    Abrir Google Cloud Console ↗
+                    1. Abrir Google Cloud Console ↗
                   </button>
                 </div>
               </div>
             </div>
 
-            {/* Passo 2 */}
+            {/* Passo 2: Público-alvo / Utilizadores de Teste (OBRIGATÓRIO) */}
             <div
               style={{
                 display: 'flex',
                 gap: '12px',
                 padding: '12px 14px',
-                border: '1px solid var(--hairline)',
+                border: '1px solid var(--hairline-strong)',
                 borderRadius: 'var(--radius-sm)',
                 backgroundColor: 'var(--surface-sunken)',
               }}
@@ -321,19 +321,20 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
               </div>
               <div style={{ flex: 1 }}>
                 <strong style={{ fontSize: '0.85rem', display: 'block', marginBottom: '4px' }}>
-                  Criar Credencial do tipo &ldquo;Desktop app&rdquo;
+                  Ecrã de Consentimento & Público-Alvo / Utilizadores de Teste (Obrigatório)
                 </strong>
                 <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
-                  Em <strong>Credenciais</strong> → <strong>Criar Credenciais</strong> → <strong>ID do cliente OAuth</strong>, escolhe o tipo <strong>Aplicação de Computador</strong> (Desktop app). No ecrã de consentimento, adiciona o teu e-mail em <em>Test users</em> e descarrega o ficheiro JSON.
+                  No menu <strong>Ecrã de consentimento OAuth</strong> (*OAuth consent screen*), seleciona tipo <strong>Externo</strong> (*External*).<br />
+                  ⚠️ <strong>Passo Crítico:</strong> Na secção <strong>Público-alvo</strong> (*Audience*) ou <strong>Utilizadores de Teste</strong> (*Test users*), clica obrigatoriamente em <strong>&ldquo;+ Adicionar utilizadores&rdquo;</strong> e introduz todos os e-mails Gmail que vais usar no Corvo. Se não adicionares o teu e-mail aqui, a Google bloqueará o acesso com <em>Erro 403 (access_denied)</em>.
                 </p>
                 <div style={{ marginTop: '8px' }}>
                   <button
                     type="button"
                     className="quiet-btn"
                     style={{ fontSize: '0.78rem', textDecoration: 'underline' }}
-                    onClick={() => void openExternalUrl('https://console.cloud.google.com/apis/credentials')}
+                    onClick={() => void openExternalUrl('https://console.cloud.google.com/apis/credentials/consent')}
                   >
-                    Abrir Ecrã de Credenciais ↗
+                    2. Configurar Ecrã de Consentimento & Utilizadores de Teste ↗
                   </button>
                 </div>
               </div>
@@ -369,10 +370,58 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
               </div>
               <div style={{ flex: 1 }}>
                 <strong style={{ fontSize: '0.85rem', display: 'block', marginBottom: '4px' }}>
+                  Criar Credencial &ldquo;Desktop app&rdquo; e Descarregar JSON
+                </strong>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
+                  Em <strong>Credenciais</strong> → <strong>+ Criar Credenciais</strong> → <strong>ID do cliente OAuth</strong>, escolhe o tipo <strong>Aplicação de Computador</strong> (Desktop app). Clica em <em>Criar</em> e depois no botão/ícone de <strong>Descarregar ficheiro JSON</strong>.
+                </p>
+                <div style={{ marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    className="quiet-btn"
+                    style={{ fontSize: '0.78rem', textDecoration: 'underline' }}
+                    onClick={() => void openExternalUrl('https://console.cloud.google.com/apis/credentials')}
+                  >
+                    3. Abrir Ecrã de Credenciais ↗
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Passo 4 */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '12px',
+                padding: '12px 14px',
+                border: '1px solid var(--hairline)',
+                borderRadius: 'var(--radius-sm)',
+                backgroundColor: 'var(--surface-sunken)',
+              }}
+            >
+              <div
+                style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--ink-primary)',
+                  color: 'var(--surface-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  flexShrink: 0,
+                }}
+              >
+                4
+              </div>
+              <div style={{ flex: 1 }}>
+                <strong style={{ fontSize: '0.85rem', display: 'block', marginBottom: '4px' }}>
                   Colar o ficheiro JSON descarregado
                 </strong>
                 <p style={{ margin: '0 0 8px 0', fontSize: '0.8rem', color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
-                  Abre o ficheiro JSON descarregado num editor de texto, copia todo o conteúdo e cola aqui:
+                  Abre o ficheiro JSON descarregado num editor de texto (começa por <code>&#123;&quot;installed&quot;: ...&#125;</code>), copia todo o conteúdo e cola aqui:
                 </p>
 
                 <form
