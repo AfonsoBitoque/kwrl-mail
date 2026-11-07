@@ -23,6 +23,7 @@ echo "[1/4] A verificar e instalar dependências do sistema via pacman..."
 DEPS=(
     base-devel
     cmake
+    clang
     webkit2gtk-4.1
     gtk3
     glib2
