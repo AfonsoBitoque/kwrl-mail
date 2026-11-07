@@ -894,12 +894,10 @@ REGRAS:\n\
         #[derive(Deserialize)]
         struct WorkerStreamEvent<'a> {
             event: &'a str,
-            #[serde(borrow)]
-            delta: Option<&'a str>,
+            delta: Option<String>,
             ttft_ms: Option<u64>,
             total_ms: Option<u64>,
-            #[serde(borrow)]
-            message: Option<&'a str>,
+            message: Option<String>,
         }
 
         while let Some(line) = worker
@@ -914,7 +912,7 @@ REGRAS:\n\
 
             match parsed.event {
                 "token" => {
-                    let raw_delta = parsed.delta.unwrap_or_default();
+                    let raw_delta = parsed.delta.as_deref().unwrap_or_default();
                     let clean_delta = sanitize_plain_text_output(raw_delta);
                     if !clean_delta.is_empty() {
                         accumulated.push_str(&clean_delta);
@@ -962,7 +960,9 @@ REGRAS:\n\
                 }
                 "error" => {
                     return Err(LlmError::WorkerFailure(
-                        parsed.message.unwrap_or("Erro desconhecido do worker.").to_string(),
+                        parsed
+                            .message
+                            .unwrap_or_else(|| "Erro desconhecido do worker.".to_string()),
                     ));
                 }
                 _ => {}
@@ -1342,5 +1342,43 @@ mod tests {
     fn cpu_threads_respect_physical_core_cap_of_eight() {
         let threads = optimal_cpu_threads();
         assert!((1..=8).contains(&threads));
+    }
+
+    #[test]
+    fn worker_stream_event_deserializes_escaped_newlines_and_quotes() {
+        #[allow(dead_code)]
+        #[derive(Deserialize)]
+        struct TestWorkerStreamEvent<'a> {
+            event: &'a str,
+            delta: Option<String>,
+            ttft_ms: Option<u64>,
+            total_ms: Option<u64>,
+            message: Option<String>,
+        }
+
+        // Teste com o caso exato reportado: vírgula seguida de duplo enter ",\n\n"
+        let line_double_newline = r#"{"event":"token","request_id":"req-1","delta":",\n\n"}"#;
+        let parsed: TestWorkerStreamEvent =
+            serde_json::from_str(line_double_newline).expect("Deve desserializar duplo enter sem erro");
+        assert_eq!(parsed.event, "token");
+        assert_eq!(parsed.delta.as_deref(), Some(",\n\n"));
+
+        // Teste com enter único ",\n"
+        let line_single_newline = r#"{"event":"token","request_id":"req-1","delta":",\n"}"#;
+        let parsed_single: TestWorkerStreamEvent =
+            serde_json::from_str(line_single_newline).expect("Deve desserializar enter único sem erro");
+        assert_eq!(parsed_single.delta.as_deref(), Some(",\n"));
+
+        // Teste com aspas escapadas
+        let line_quotes = r#"{"event":"token","request_id":"req-1","delta":"\"citação\""}"#;
+        let parsed_quotes: TestWorkerStreamEvent =
+            serde_json::from_str(line_quotes).expect("Deve desserializar aspas sem erro");
+        assert_eq!(parsed_quotes.delta.as_deref(), Some("\"citação\""));
+
+        // Teste com texto normal
+        let line_plain = r#"{"event":"token","request_id":"req-1","delta":"Texto simples"}"#;
+        let parsed_plain: TestWorkerStreamEvent =
+            serde_json::from_str(line_plain).expect("Deve desserializar texto simples sem erro");
+        assert_eq!(parsed_plain.delta.as_deref(), Some("Texto simples"));
     }
 }
