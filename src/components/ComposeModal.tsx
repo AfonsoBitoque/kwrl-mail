@@ -497,6 +497,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               gap: '6px',
               position: 'relative',
               backgroundColor: 'var(--bg)',
+              zIndex: activeAutocompleteField === 'to' ? 60 : 10,
             }}
           >
             <span style={{ color: 'var(--mute)', width: '45px' }}>Para:</span>
@@ -603,9 +604,9 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                   backgroundColor: 'var(--bg)',
                   border: '1px solid var(--line)',
                   borderRadius: '6px',
-                  boxShadow: '0 6px 16px rgba(0,0,0,0.18)',
-                  zIndex: 20,
-                  maxHeight: '160px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+                  zIndex: 100,
+                  maxHeight: '180px',
                   overflowY: 'auto',
                 }}
               >
@@ -655,6 +656,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 gap: '6px',
                 position: 'relative',
                 backgroundColor: 'var(--bg)',
+                zIndex: activeAutocompleteField === 'cc' ? 60 : 9,
               }}
             >
               <span style={{ color: 'var(--mute)', width: '45px' }}>Cc:</span>
@@ -723,9 +725,9 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                     backgroundColor: 'var(--bg)',
                     border: '1px solid var(--line)',
                     borderRadius: '6px',
-                    boxShadow: '0 6px 16px rgba(0,0,0,0.18)',
-                    zIndex: 20,
-                    maxHeight: '160px',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+                    zIndex: 100,
+                    maxHeight: '180px',
                     overflowY: 'auto',
                   }}
                 >
@@ -776,6 +778,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 gap: '6px',
                 position: 'relative',
                 backgroundColor: 'var(--bg)',
+                zIndex: activeAutocompleteField === 'bcc' ? 60 : 8,
               }}
             >
               <span style={{ color: 'var(--mute)', width: '45px' }}>Bcc:</span>
@@ -844,9 +847,9 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                     backgroundColor: 'var(--bg)',
                     border: '1px solid var(--line)',
                     borderRadius: '6px',
-                    boxShadow: '0 6px 16px rgba(0,0,0,0.18)',
-                    zIndex: 20,
-                    maxHeight: '160px',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+                    zIndex: 100,
+                    maxHeight: '180px',
                     overflowY: 'auto',
                   }}
                 >
@@ -922,7 +925,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               backgroundColor: 'var(--fill)',
               borderBottom: '1px solid var(--line)',
               position: 'relative',
-              zIndex: 40,
+              zIndex: aiMenuOpen ? 50 : 5,
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }} ref={aiMenuRef}>
