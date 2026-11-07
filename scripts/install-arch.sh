@@ -92,9 +92,17 @@ echo "-> A instalar dependências Node e compilar Frontend (Vite)..."
 npm install
 npm run build
 
-echo "-> A compilar binários Rust de produção..."
+echo "-> A compilar motor de IA isolado (corvo-llm-worker)..."
 # shellcheck disable=SC2086
-cargo build --manifest-path src-tauri/Cargo.toml --release ${CARGO_FLAGS}
+cargo build --manifest-path src-tauri/Cargo.toml --release --bin corvo-llm-worker ${CARGO_FLAGS}
+
+echo "-> A compilar o Corvo com assets de produção embutidos (Tauri)..."
+if [ -n "${CARGO_FLAGS}" ]; then
+    # shellcheck disable=SC2086
+    npx tauri build --no-bundle ${CARGO_FLAGS}
+else
+    npx tauri build --no-bundle
+fi
 
 echo ""
 echo "[4/4] A instalar ficheiros no sistema..."

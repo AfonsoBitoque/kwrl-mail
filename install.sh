@@ -32,7 +32,8 @@ case "${OS}" in
             echo "A compilar..."
             npm install
             npm run build
-            cargo build --manifest-path src-tauri/Cargo.toml --release
+            cargo build --manifest-path src-tauri/Cargo.toml --release --bin corvo-llm-worker
+            npx tauri build --no-bundle
             echo "Instalação concluída. Binários em: src-tauri/target/release/corvo-desktop"
         fi
         ;;
