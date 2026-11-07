@@ -275,6 +275,15 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = 'var(--ink)';
+              e.currentTarget.style.backgroundColor = 'var(--hov)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'var(--mute)';
+              e.currentTarget.style.backgroundColor = 'transparent';
             }}
             title="Criar nova caixa de e-mail personalizada"
             aria-label="Criar nova caixa de e-mail"
@@ -345,23 +354,6 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
               </div>
             );
           })}
-
-          {customMailboxes.length === 0 && (
-            <button
-              type="button"
-              className="tinta-nav-item"
-              style={{
-                fontSize: '12px',
-                color: 'var(--faint)',
-                fontStyle: 'italic',
-                padding: '6px 10px',
-              }}
-              onClick={onCreateCustomMailbox}
-            >
-              <IconPlus size={12} />
-              <span>+ Criar caixa por conta</span>
-            </button>
-          )}
         </nav>
       </div>
 
