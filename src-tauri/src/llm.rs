@@ -892,8 +892,8 @@ REGRAS:\n\
         };
 
         #[derive(Deserialize)]
-        struct WorkerStreamEvent<'a> {
-            event: &'a str,
+        struct WorkerStreamEvent {
+            event: String,
             delta: Option<String>,
             ttft_ms: Option<u64>,
             total_ms: Option<u64>,
@@ -910,7 +910,7 @@ REGRAS:\n\
             let parsed: WorkerStreamEvent = serde_json::from_str(&line)
                 .map_err(|e| LlmError::WorkerFailure(format!("JSON inválido do worker: {}", e)))?;
 
-            match parsed.event {
+            match parsed.event.as_str() {
                 "token" => {
                     let raw_delta = parsed.delta.as_deref().unwrap_or_default();
                     let clean_delta = sanitize_plain_text_output(raw_delta);
@@ -1348,8 +1348,8 @@ mod tests {
     fn worker_stream_event_deserializes_escaped_newlines_and_quotes() {
         #[allow(dead_code)]
         #[derive(Deserialize)]
-        struct TestWorkerStreamEvent<'a> {
-            event: &'a str,
+        struct TestWorkerStreamEvent {
+            event: String,
             delta: Option<String>,
             ttft_ms: Option<u64>,
             total_ms: Option<u64>,
