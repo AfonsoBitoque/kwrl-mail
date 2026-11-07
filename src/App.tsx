@@ -8,7 +8,6 @@ import { PrivacySettingsDrawer } from './components/PrivacySettingsDrawer';
 import { ReadingPane } from './components/ReadingPane';
 import { MAILBOXES, SidebarViews } from './components/SidebarViews';
 import {
-  addCustomAccount,
   archiveThreads,
   AttachmentPayload,
   disconnectGmailAccount,
@@ -1495,18 +1494,6 @@ export const App: React.FC = () => {
           await refreshThreadList();
         }}
         onAddAccount={handleAddAccount}
-        onAddCustomAccount={async (email, label, provider) => {
-          if (!tauriRuntime) return;
-          try {
-            await addCustomAccount(email, label, provider);
-            await refreshBootstrap();
-            await refreshThreadList();
-            triggerUndoNotice(`Conta ${provider.toUpperCase()} (${email}) associada com sucesso!`, () => {});
-          } catch (err) {
-            console.error('Erro ao associar conta personalizada:', err);
-            triggerUndoNotice(`Falha ao associar conta: ${err instanceof Error ? err.message : String(err)}`, () => {});
-          }
-        }}
       />
 
       {/* Modal para Criar / Editar Caixa de Entrada Personalizada */}

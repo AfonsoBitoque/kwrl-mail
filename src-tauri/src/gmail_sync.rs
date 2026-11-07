@@ -187,6 +187,9 @@ impl GmailSyncEngine {
         let accounts = self.db.list_accounts()?;
         let mut reports = Vec::new();
         for acc in accounts {
+            if acc.provider.as_str() != "gmail" {
+                continue;
+            }
             let report = self
                 .sync_account(oauth_config, &acc.email, max_initial_messages)
                 .await?;
@@ -204,6 +207,17 @@ impl GmailSyncEngine {
         max_initial_messages: usize,
     ) -> Result<SyncReport, GmailSyncError> {
         let stored = self.db.get_account(email)?;
+        if let Some(ref acc) = stored {
+            if acc.provider.as_str() != "gmail" {
+                return Ok(SyncReport {
+                    account_email: email.to_string(),
+                    mode: "skipped-unsupported-provider".to_string(),
+                    added_messages: 0,
+                    deleted_messages: 0,
+                    new_history_id: String::new(),
+                });
+            }
+        }
         let existing_history = stored.and_then(|a| a.history_id);
 
         if let Some(ref start_hid) = existing_history {

@@ -29,7 +29,6 @@ interface PrivacySettingsDrawerProps {
   }) => Promise<void>;
   onDisconnectAccount: (email: string) => Promise<void>;
   onAddAccount?: () => void;
-  onAddCustomAccount?: (email: string, label: string, provider: string) => Promise<void>;
 }
 
 export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
@@ -47,12 +46,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
   onUpdateAccountPolicy,
   onDisconnectAccount,
   onAddAccount,
-  onAddCustomAccount,
 }) => {
-  const [addingProvider, setAddingProvider] = useState<'outlook' | 'imap' | null>(null);
-  const [newAccountEmail, setNewAccountEmail] = useState('');
-  const [newAccountLabel, setNewAccountLabel] = useState('');
-  const [isSubmittingAccount, setIsSubmittingAccount] = useState(false);
   const [pollSecs, setPollSecs] = useState(pollIntervalSecs);
   const [aiActive, setAiActive] = useState(!masterAiKillSwitch);
   const [sigName, setSigName] = useState(userSignatureName);
@@ -454,159 +448,43 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                   alignItems: 'center',
                   gap: '6px',
                   fontSize: '12px',
-                  padding: '6px 12px',
+                  padding: '6px 14px',
                 }}
                 onClick={onAddAccount}
               >
                 <IconPlus size={13} />
-                <span>Google / Gmail</span>
+                <span>Associar Nova Conta Google / Gmail</span>
               </button>
-            )}
-
-            {onAddCustomAccount && (
-              <>
-                <button
-                  type="button"
-                  className="tinta-btn-secondary"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '12px',
-                    padding: '6px 12px',
-                  }}
-                  onClick={() => {
-                    setAddingProvider(addingProvider === 'outlook' ? null : 'outlook');
-                    setNewAccountEmail('');
-                    setNewAccountLabel('');
-                  }}
-                >
-                  <IconPlus size={13} />
-                  <span>Microsoft 365 / Outlook</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="tinta-btn-secondary"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: '12px',
-                    padding: '6px 12px',
-                  }}
-                  onClick={() => {
-                    setAddingProvider(addingProvider === 'imap' ? null : 'imap');
-                    setNewAccountEmail('');
-                    setNewAccountLabel('');
-                  }}
-                >
-                  <IconPlus size={13} />
-                  <span>Conta IMAP / Personalizada</span>
-                </button>
-              </>
             )}
           </div>
 
-          {addingProvider && onAddCustomAccount && (
-            <div
-              style={{
-                marginTop: '12px',
-                padding: '12px',
-                borderRadius: '8px',
-                backgroundColor: 'var(--fill)',
-                border: '1px solid var(--line)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-              }}
-            >
-              <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>
-                {addingProvider === 'outlook'
-                  ? 'Associar Conta Microsoft 365 / Outlook'
-                  : 'Associar Conta IMAP / Servidor Próprio'}
-              </div>
-              <input
-                type="email"
-                placeholder="exemplo@empresa.com"
-                value={newAccountEmail}
-                onChange={(e) => setNewAccountEmail(e.target.value)}
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--line)',
-                  backgroundColor: 'var(--bg)',
-                  color: 'var(--ink)',
-                  fontSize: '12px',
-                  outline: 'none',
-                }}
-              />
-              <input
-                type="text"
-                placeholder="Etiqueta da conta (ex: Trabalho, Corporativo)"
-                value={newAccountLabel}
-                onChange={(e) => setNewAccountLabel(e.target.value)}
-                style={{
-                  padding: '6px 10px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--line)',
-                  backgroundColor: 'var(--bg)',
-                  color: 'var(--ink)',
-                  fontSize: '12px',
-                  outline: 'none',
-                }}
-              />
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
-                <button
-                  type="button"
-                  onClick={() => setAddingProvider(null)}
-                  style={{
-                    padding: '4px 10px',
-                    background: 'transparent',
-                    border: 'none',
-                    fontSize: '11.5px',
-                    color: 'var(--mute)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  disabled={!newAccountEmail.trim() || isSubmittingAccount}
-                  onClick={async () => {
-                    if (!newAccountEmail.trim()) return;
-                    setIsSubmittingAccount(true);
-                    try {
-                      await onAddCustomAccount(
-                        newAccountEmail.trim(),
-                        newAccountLabel.trim(),
-                        addingProvider
-                      );
-                      setAddingProvider(null);
-                    } catch (err) {
-                      console.error('Erro ao adicionar conta:', err);
-                    } finally {
-                      setIsSubmittingAccount(false);
-                    }
-                  }}
-                  style={{
-                    padding: '5px 12px',
-                    borderRadius: '6px',
-                    backgroundColor: 'var(--acc)',
-                    color: '#fff',
-                    border: 'none',
-                    fontSize: '11.5px',
-                    fontWeight: 600,
-                    cursor: !newAccountEmail.trim() || isSubmittingAccount ? 'not-allowed' : 'pointer',
-                    opacity: !newAccountEmail.trim() || isSubmittingAccount ? 0.6 : 1,
-                  }}
-                >
-                  {isSubmittingAccount ? 'A associar…' : 'Ligar Conta'}
-                </button>
-              </div>
+          {/* Informação sobre suporte a Microsoft 365, Outlook e IMAP */}
+          <div
+            style={{
+              marginTop: '14px',
+              padding: '12px 14px',
+              borderRadius: '8px',
+              backgroundColor: 'var(--fill)',
+              border: '1px solid var(--line)',
+              fontSize: '11.5px',
+              color: 'var(--mute)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              lineHeight: '1.5',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, color: 'var(--ink)' }}>
+              <span>ℹ️</span>
+              <span>Microsoft 365, Outlook e IMAP</span>
             </div>
-          )}
+            <div>
+              O Corvo opera atualmente em exclusivo com contas <strong>Google / Gmail</strong> através do fluxo oficial <strong>OAuth 2.0 PKCE S256</strong> (RFC 8252) com permissões mínimas e sincronização local direta.
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--faint)' }}>
+              O suporte nativo a <strong>Microsoft 365 / Outlook</strong> (via Microsoft Graph API) e servidores <strong>IMAP</strong> está previsto para uma versão futura.
+            </div>
+          </div>
         </section>
       </div>
     </div>

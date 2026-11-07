@@ -2108,51 +2108,15 @@ async fn export_thread_eml(
 
 #[tauri::command]
 async fn add_custom_account(
-    state: State<'_, CorvoState>,
-    email: String,
-    label: String,
+    _state: State<'_, CorvoState>,
+    _email: String,
+    _label: String,
     provider: String,
 ) -> Result<AccountViewDto, String> {
-    let clean_email = email.trim().to_ascii_lowercase();
-    if !clean_email.contains('@') {
-        return Err("Endereço de e-mail inválido.".into());
-    }
-    let clean_label = if label.trim().is_empty() {
-        clean_email.split('@').next().unwrap_or(&clean_email).to_string()
-    } else {
-        label.trim().to_string()
-    };
-    let prov = if provider.trim().is_empty() { "outlook" } else { provider.trim() };
-
-    state
-        .db
-        .upsert_account_with_provider(
-            &clean_email,
-            &clean_label,
-            GmailScopeMode::ModifyAndLabels,
-            None,
-            Some(prov),
-        )
-        .map_err(|e| e.to_string())?;
-
-    let acc = state
-        .db
-        .get_account(&clean_email)
-        .map_err(|e| e.to_string())?
-        .ok_or_else(|| "Conta não encontrada.".to_string())?;
-
-    Ok(AccountViewDto {
-        email: acc.email,
-        label: acc.label,
-        scope_mode: acc.scope_mode,
-        history_id: acc.history_id,
-        keychain_session_active: true,
-        ai_enabled: acc.ai_enabled,
-        suggestion_trigger: acc.suggestion_trigger,
-        auto_summarize: acc.auto_summarize,
-        last_synced_epoch: acc.last_synced_epoch,
-        provider: acc.provider,
-    })
+    let prov = if provider.trim().is_empty() { "Outlook" } else { provider.trim() };
+    Err(format!(
+        "O fornecedor '{prov}' ainda não está suportado nativamente. De momento, o Corvo opera em exclusivo com contas Google / Gmail através de autenticação oficial OAuth 2.0 PKCE."
+    ))
 }
 
 pub fn run() {
