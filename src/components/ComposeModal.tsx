@@ -399,15 +399,14 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
         onDrop={handleDrop}
         style={{
           width: '100%',
-          maxWidth: '720px',
-          maxHeight: '90vh',
+          maxWidth: '740px',
+          height: 'min(720px, 92vh)',
           backgroundColor: 'var(--bg)',
           borderRadius: '12px',
           border: '1px solid var(--line)',
           boxShadow: '0 24px 48px rgba(0, 0, 0, 0.35)',
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'hidden',
           position: 'relative',
         }}
       >
@@ -420,6 +419,8 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
             padding: '12px 18px',
             borderBottom: '1px solid var(--line)',
             backgroundColor: 'var(--side)',
+            borderTopLeftRadius: '12px',
+            borderTopRightRadius: '12px',
           }}
         >
           <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>
@@ -446,7 +447,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
         </div>
 
         {/* Formulário */}
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, position: 'relative' }}>
           {/* Seletor de Conta Remetente (De:) */}
           {accounts.length > 1 && (
             <div
@@ -921,6 +922,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               backgroundColor: 'var(--fill)',
               borderBottom: '1px solid var(--line)',
               position: 'relative',
+              zIndex: 40,
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }} ref={aiMenuRef}>
@@ -981,12 +983,16 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                     border: '1px solid var(--line)',
                     borderRadius: '8px',
                     boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
-                    zIndex: 50,
+                    zIndex: 100,
                     width: '280px',
                     padding: '6px',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '2px',
+                    maxHeight: 'min(380px, calc(90vh - 220px))',
+                    overflowY: 'auto',
+                    overscrollBehavior: 'contain',
+                    boxSizing: 'border-box',
                   }}
                 >
                   <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--faint)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
@@ -1147,7 +1153,10 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                       setCustomPromptOpen(true);
                     }}
                     style={{
-                      padding: '6px 8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '7px 8px',
                       borderRadius: '5px',
                       border: 'none',
                       backgroundColor: 'transparent',
@@ -1160,7 +1169,8 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                   >
-                    ✏️ Pedir outra alteração personalizada...
+                    <span>✏️</span>
+                    <span>Pedir outra alteração personalizada...</span>
                   </button>
                 </div>
               )}

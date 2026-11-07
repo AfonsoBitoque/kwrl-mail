@@ -370,6 +370,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
 
   const [isAiRevising, setIsAiRevising] = useState(false);
   const [aiMenuOpen, setAiMenuOpen] = useState(false);
+  const [customPromptOpen, setCustomPromptOpen] = useState(false);
+  const [customPromptText, setCustomPromptText] = useState('');
   const [aiNotice, setAiNotice] = useState<string | null>(null);
   const [previousDraftForUndo, setPreviousDraftForUndo] = useState<string | null>(null);
   const aiMenuRef = useRef<HTMLDivElement | null>(null);
@@ -389,8 +391,9 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
   }, [aiMenuOpen]);
 
   const handleAiAction = async (
-    action: 'organize_and_correct' | 'formal' | 'short' | 'translate',
-    targetLang?: string
+    action: 'organize_and_correct' | 'formal' | 'short' | 'translate' | 'custom',
+    targetLang?: string,
+    customInstruction?: string
   ) => {
     if (!localDraft.trim() || isAiRevising) return;
     setAiMenuOpen(false);
@@ -403,6 +406,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
         ? 'A reescrever em tom formal...'
         : action === 'short'
         ? 'A condensar o texto...'
+        : action === 'custom'
+        ? 'A aplicar alteração personalizada...'
         : `A traduzir para ${targetLang || 'inglês'}...`
     );
 
@@ -417,6 +422,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
         action,
         recipient,
         targetLang,
+        customInstruction,
       });
       if (res.fullText && res.fullText.trim()) {
         onDraftChange(res.fullText.trim());
@@ -1080,19 +1086,23 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                     <div
                       style={{
                         position: 'absolute',
-                        top: '100%',
+                        bottom: '100%',
                         right: 0,
-                        marginTop: '4px',
+                        marginBottom: '6px',
                         backgroundColor: 'var(--bg)',
                         border: '1px solid var(--line)',
                         borderRadius: '8px',
                         boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
-                        zIndex: 50,
+                        zIndex: 100,
                         width: '260px',
                         padding: '6px',
                         display: 'flex',
                         flexDirection: 'column',
                         gap: '2px',
+                        maxHeight: 'min(380px, calc(100vh - 220px))',
+                        overflowY: 'auto',
+                        overscrollBehavior: 'contain',
+                        boxSizing: 'border-box',
                       }}
                     >
                       <button
@@ -1225,6 +1235,35 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                           🇩🇪 Alemão
                         </button>
                       </div>
+
+                      <div style={{ height: '1px', backgroundColor: 'var(--line)', margin: '3px 0' }} />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAiMenuOpen(false);
+                          setCustomPromptOpen(true);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 8px',
+                          borderRadius: '5px',
+                          border: 'none',
+                          backgroundColor: 'transparent',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          color: 'var(--ink)',
+                          fontWeight: 500,
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      >
+                        <span>✏️</span>
+                        <span>Pedir outra alteração personalizada...</span>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -1252,6 +1291,79 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                 )}
               </div>
             </div>
+
+            {/* Campo de Instrução Personalizada de IA */}
+            {customPromptOpen && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '6px 10px',
+                  backgroundColor: 'var(--side)',
+                  borderRadius: 'var(--radius-lg)',
+                  border: '1px solid var(--line)',
+                }}
+              >
+                <input
+                  type="text"
+                  value={customPromptText}
+                  onChange={(e) => setCustomPromptText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (customPromptText.trim()) {
+                        void handleAiAction('custom', undefined, customPromptText.trim());
+                        setCustomPromptOpen(false);
+                        setCustomPromptText('');
+                      }
+                    } else if (e.key === 'Escape') {
+                      setCustomPromptOpen(false);
+                    }
+                  }}
+                  placeholder="Ex: 'Muda o tom para mais amigável e diz que só posso reunir quinta-feira à tarde' (Enter para aplicar)"
+                  style={{
+                    flex: 1,
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--line)',
+                    backgroundColor: 'var(--bg)',
+                    color: 'var(--ink)',
+                    fontSize: '11.5px',
+                    outline: 'none',
+                  }}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (customPromptText.trim()) {
+                      void handleAiAction('custom', undefined, customPromptText.trim());
+                      setCustomPromptOpen(false);
+                      setCustomPromptText('');
+                    }
+                  }}
+                  disabled={!customPromptText.trim()}
+                  className="tinta-btn-primary"
+                  style={{ fontSize: '11px', padding: '3px 10px' }}
+                >
+                  Aplicar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomPromptOpen(false)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--mute)',
+                    fontSize: '11px',
+                  }}
+                >
+                  Cancelar
+                </button>
+              </div>
+            )}
 
             {/* Linha contextual do destinatário / assunto */}
             {sendMode === 'reply' ? (
