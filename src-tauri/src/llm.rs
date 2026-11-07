@@ -655,11 +655,11 @@ impl LlmSupervisor {
 
         let (greeting_directive, greeting_sample) = match recipient_display_name.as_deref() {
             Some(name) => (
-                format!("O destinatário chama-se {}. Usa obrigatoriamente a saudação 'Estimado(a) {},' ou 'Caro(a) {},'.", name, name, name),
-                format!("Estimado(a) {},", name),
+                format!("O destinatário chama-se {}. Usa a saudação 'Estimado {},' ou 'Olá {},'. É EXPRESSAMENTE PROIBIDO usar 'Estimado(a)'.", name, name, name),
+                format!("Estimado {},", name),
             ),
             None => (
-                "O nome do destinatário não foi especificado. Usa 'Boa tarde,' ou 'Estimado(a),'. NUNCA inventes nomes fictícios nem uses [Nome].".to_string(),
+                "O nome do destinatário não foi especificado. Usa obrigatoriamente 'Boa tarde,' ou 'Olá,'. É EXPRESSAMENTE PROIBIDO usar 'Estimado(a),', 'Caro(a),' ou inventar nomes fictícios.".to_string(),
                 "Boa tarde,".to_string(),
             ),
         };
@@ -668,8 +668,13 @@ impl LlmSupervisor {
         let inst = custom_instruction.unwrap_or("Melhora o texto com clareza.");
         let system_prompt = match action {
             "formal" => format!("\
-És o assistente de redação e revisão formal do Yoot-Mail, especialista em correspondência em português europeu (Portugal).\n\
+És o assistente de redação e revisão formal do Corvo, especialista em correspondência em português europeu (Portugal).\n\
 O teu papel é transformar o texto do utilizador num e-mail formal, natural, polido e perfeitamente estruturado.\n\
+\n\
+CONTEXTO DE ESCRITA (NOVA MENSAGEM DO ZERO):\n\
+- Este e-mail é uma nova composição original escrita pelo remetente ({}). NÃO é uma resposta a nenhuma mensagem recebida.\n\
+- É TERMINANTEMENTE PROIBIDO inventar que recebeste uma mensagem, telefonema ou contacto anterior. NUNCA escrevas 'O prazer de receber sua mensagem', 'Obrigado pelo seu e-mail', 'Em resposta' nem clichês como 'Espero que esteja bem' ou 'Espero que este e-mail o encontre bem'.\n\
+- Trata direta e educadamente do assunto pretendido pelo utilizador.\n\
 \n\
 REGRA FUNDAMENTAL DE FIDELIDADE (ZERO ALUCINAÇÕES):\n\
 1. BASEIA-TE EXCLUSIVAMENTE nas ideias, assuntos e pedidos presentes no texto do utilizador. É ESTRITAMENTE PROIBIDO inventar tarefas, serviços ou temas não mencionados pelo utilizador.\n\
@@ -692,16 +697,20 @@ REGRAS DE CONTEÚDO E LINGUAGEM (PROIBIÇÕES ESTRITAS):\n\
    - Trata direta e educadamente do assunto do utilizador.\n\
 3. ZERO PORTUGUÊS DO BRASIL (ESTRITO PT-PT):\n\
    - NUNCA uses 'Prezado' (usa 'Estimado' ou 'Caro').\n\
-   - NUNCA uses 'você' (usa formas verbais diretas de cortesia: 'se tiver disponibilidade', 'quando lhe for conveniente', 'se for oportuno').\n\
+   - NUNCA uses 'você' nem 'você tem' (usa conjugação formal de Portugal: 'se tem disponibilidade', 'se tiver disponibilidade', 'quando lhe for conveniente', 'se for oportuno').\n\
+   - NUNCA uses expressões brasileiras como 'jogar bola' (em Portugal diz-se 'jogar à bola' ou 'jogar futebol'), 'celular', 'no aguardo', 'cadastrar'.\n\
    - Usa SEMPRE ênclise com infinitivos ('acompanhar-me', 'dizer-me', 'enviar-me', e NUNCA 'me acompanhar', 'me dizer', 'me enviar').\n\
    - Usa 'num / numa' e NUNCA 'em um / em uma'.\n\
 4. SEM META-TEXTO: Escreve apenas o e-mail final formatado.",
-                greeting_directive, user_sig, user_sig, greeting_sample, user_sig
+                user_sig, greeting_directive, user_sig, user_sig, greeting_sample, user_sig
             ),
 
             "organize_and_correct" => format!("\
-És o assistente de redação e revisão do Yoot-Mail, especialista em português europeu (Portugal).\n\
+És o assistente de redação e revisão do Corvo, especialista em português europeu (Portugal).\n\
 O teu papel é rever, organizar e estruturar o texto fornecido pelo utilizador.\n\
+\n\
+CONTEXTO DE ESCRITA (NOVA MENSAGEM DO ZERO):\n\
+- Este e-mail é uma composição escrita pelo remetente ({}). NÃO inventes mensagens anteriores nem agradeças nada não solicitado.\n\
 \n\
 REGRA FUNDAMENTAL DE FIDELIDADE (ZERO ALUCINAÇÕES):\n\
 1. BASEIA-TE EXCLUSIVAMENTE nas ideias e assuntos escritos pelo utilizador. NUNCA inventes tarefas, serviços ou temas não mencionados no texto de entrada.\n\
@@ -721,11 +730,11 @@ REGRAS DE REVISÃO E ESTILO:\n\
 - ZERO COLCHETES OU PLACEHOLDERS: NUNCA escrevas '[Nome]' nem '[Seu Nome]'.\n\
 - Usa SEMPRE português de Portugal (pt-PT): ênclise correta ('diz-me', 'envia-me', 'acompanhar-me') e NUNCA próclise brasileira.\n\
 - SEM META-TEXTO: Devolve APENAS o texto final pronto a enviar, sem introduções ou explicações.",
-                greeting_directive, user_sig, user_sig, greeting_sample
+                user_sig, greeting_directive, user_sig, user_sig, greeting_sample
             ),
 
             "short" => "\
-És o assistente de síntese do Yoot-Mail. O teu papel é condensar o texto fornecido tornando-o conciso, direto e objetivo em português europeu (pt-PT).\n\
+És o assistente de síntese do Corvo. O teu papel é condensar o texto fornecido tornando-o conciso, direto e objetivo em português europeu (pt-PT).\n\
 \n\
 ESTRUTURAÇÃO:\n\
 - Divide o texto com quebras de linha limpas e parágrafos espaçados por duplo enter. Não deixes o texto corrido numa linha só.\n\
@@ -733,7 +742,7 @@ ESTRUTURAÇÃO:\n\
 - SEM META-TEXTO: Devolve APENAS o texto condensado formatado.".to_string(),
 
             "translate" => format!("\
-És o tradutor de correspondência do Yoot-Mail.\n\
+És o tradutor de correspondência do Corvo.\n\
 O teu papel é traduzir o texto fornecido pelo utilizador fielmente para {}.\n\
 \n\
 ESTRUTURAÇÃO:\n\
@@ -743,7 +752,7 @@ ESTRUTURAÇÃO:\n\
 - SEM META-TEXTO: Devolve APENAS o texto traduzido final.", lang),
 
             _ => format!("\
-És o assistente de redação do Yoot-Mail.\n\
+És o assistente de redação do Corvo.\n\
 O teu papel é cumprir a seguinte instrução ao texto do utilizador:\n\
 \"{}\"\n\
 \n\
@@ -823,8 +832,11 @@ REGRAS:\n\
             recipient_display_name.as_deref(),
         );
 
-        // 2. Aplica a formatação inteligente de quebras de linha (duplo enter)
-        completed.full_text = crate::prompt_guard::format_email_newlines(&cleaned_text);
+        // 2. Normaliza para português europeu autêntico, remove clichês proibidos e aberturas alucinadas de resposta
+        let pt_text = crate::prompt_guard::enforce_european_portuguese_rules(&cleaned_text);
+
+        // 3. Aplica a formatação inteligente de quebras de linha (duplo enter)
+        completed.full_text = crate::prompt_guard::format_email_newlines(&pt_text);
         Ok(completed)
     }
 

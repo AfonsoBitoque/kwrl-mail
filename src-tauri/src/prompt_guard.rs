@@ -810,6 +810,8 @@ const PT_RULES: &[(&str, &str)] = &[
         ("com nossa reunião", "com a nossa reunião"),
         ("posso ajustar-me", "estou disponível"),
         ("posso me ajustar", "estou disponível"),
+        ("jogar bola", "jogar à bola"),
+        ("Jogar bola", "Jogar à bola"),
 
         // Fórmulas de cortesia e expressões típicas de Portugal
         ("horário que melhor se ajusta para você", "horário que lhe dá mais jeito"),
@@ -912,6 +914,38 @@ pub fn enforce_european_portuguese_rules(raw: &str) -> String {
         if out.contains(from) {
             out = out.replace(from, to);
         }
+    }
+
+    // Remove alucinações onde o modelo inventa que está a responder a uma mensagem inexistente
+    let hallucinated_openings = [
+        "O prazer de receber sua mensagem. Espero que esteja bem.",
+        "O prazer de receber a sua mensagem. Espero que esteja bem.",
+        "O prazer de receber sua mensagem.",
+        "O prazer de receber a sua mensagem.",
+        "É um prazer receber sua mensagem.",
+        "É um prazer receber a sua mensagem.",
+        "Espero que este e-mail o encontre bem.",
+        "Espero que este email o encontre bem.",
+        "Espero que se encontre bem.",
+        "Espero que esteja bem.",
+    ];
+    for bad in hallucinated_openings {
+        if out.contains(bad) {
+            out = out.replace(bad, "");
+        }
+    }
+
+    // Corrige "se você tem" -> "se tem" e "você tem" -> "tem"
+    if out.contains("se você tem") {
+        out = out.replace("se você tem", "se tem");
+    }
+    if out.contains("você tem") {
+        out = out.replace("você tem", "tem");
+    }
+
+    // Normaliza fecho informal sem artigo "Abraço" isolado
+    if out.contains("\nAbraço\n") {
+        out = out.replace("\nAbraço\n", "\nUm abraço,\n");
     }
 
     out
@@ -1162,7 +1196,10 @@ pub fn clean_email_placeholders_and_duplicates(
         }
     }
 
-    // 3. Converte brasileirismos "Prezado" em "Estimado" (português europeu)
+    // 3. Converte brasileirismos "Prezado" e saudações artificiais com parênteses em saudações naturais de PT-PT
+    replace_if_present(&mut cleaned, "Prezado(a),", "Boa tarde,");
+    replace_if_present(&mut cleaned, "Estimado(a),", "Boa tarde,");
+    replace_if_present(&mut cleaned, "Caro(a),", "Boa tarde,");
     replace_if_present(&mut cleaned, "Prezado(a)", "Estimado(a)");
     replace_if_present(&mut cleaned, "Prezado", "Estimado");
     replace_if_present(&mut cleaned, "Prezada", "Estimada");
@@ -1183,6 +1220,8 @@ pub fn clean_email_placeholders_and_duplicates(
         (" se você tiver", " se tiver"),
         (" você poderia", " poderia"),
         (" você pode", " pode"),
+        ("jogar bola", "jogar à bola"),
+        ("Jogar bola", "Jogar à bola"),
     ];
     for (br, pt) in brazilianisms {
         replace_if_present(&mut cleaned, br, pt);
@@ -1310,6 +1349,22 @@ mod tests {
         let time_cleaned = enforce_european_portuguese_rules(asking_time_raw);
         assert!(!time_cleaned.contains("Fico a aguardar com calma"));
         assert!(time_cleaned.contains("Vou analisar com calma e pretendo voltar ao contacto"));
+
+        // Caso de e-mail novo com alucinação de resposta e brasileirismos no compositor
+        let sample = "Estimado(a),\n\nO prazer de receber sua mensagem. Espero que esteja bem. Gostaria de saber se você tem disponibilidade para jogar bola comigo, caso tenha interesse.\n\nAbraço\n\nAfonso";
+        let without_placeholders = clean_email_placeholders_and_duplicates(sample, "Afonso", None);
+        let normalized = enforce_european_portuguese_rules(&without_placeholders);
+        let formatted = format_email_newlines(&normalized);
+
+        assert!(!formatted.contains("Estimado(a),"));
+        assert!(formatted.contains("Boa tarde,"));
+        assert!(!formatted.contains("O prazer de receber"));
+        assert!(!formatted.contains("Espero que esteja bem"));
+        assert!(formatted.contains("jogar à bola"));
+        assert!(!formatted.contains("jogar bola"));
+        assert!(formatted.contains("se tem disponibilidade"));
+        assert!(!formatted.contains("você tem"));
+        assert!(formatted.contains("Um abraço,"));
     }
 
     #[test]
