@@ -1039,7 +1039,7 @@ export const App: React.FC = () => {
       setActiveTier('rascunho-curto');
       void handleGenerateAiTier('rascunho-curto', chipContext);
     } else if (chip === 'Pedir mais tempo') {
-      chipContext = 'Pedir mais tempo para analisar com calma e propor voltar ao contacto nos próximos dias.';
+      chipContext = 'Agradecer a mensagem, explicar com simpatia que preciso de tempo para analisar o assunto e que voltarei ao contacto nos próximos dias com uma resposta.';
       setUserContextByThread((prev) => ({ ...prev, [selectedThreadId]: chipContext }));
       setActiveTier('rascunho-curto');
       void handleGenerateAiTier('rascunho-curto', chipContext);

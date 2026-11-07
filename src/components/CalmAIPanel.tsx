@@ -70,7 +70,7 @@ const QUICK_CHIPS: { label: string; context: string; tier: CDLRTier }[] = [
   },
   {
     label: 'Pedir mais tempo',
-    context: 'Pedir mais tempo para analisar com calma e propor voltar ao contacto nos próximos dias.',
+    context: 'Agradecer a mensagem, explicar com simpatia que preciso de tempo para analisar o assunto e que voltarei ao contacto nos próximos dias com uma resposta.',
     tier: 'rascunho-curto',
   },
   {
