@@ -74,9 +74,10 @@ llama-cpp-2 = { version = "0.1.161", default-features = false, features = ["samp
 tempfile = "3"
 
 # Otimização de binário e performance de release (§4.3)
+# Nota: lto = false evita conflitos de empacotamento de arquivos estáticos C++ (libllama.a) com o linker rust-lld no Linux
 [profile.release]
 opt-level = 3
-lto = true
+lto = false
 codegen-units = 1
 strip = "symbols"
 panic = "abort"

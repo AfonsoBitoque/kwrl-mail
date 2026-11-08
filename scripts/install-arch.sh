@@ -199,6 +199,15 @@ echo "-> A instalar dependências Node e compilar Frontend (Vite)..."
 npm install
 npm run build
 
+echo "-> A preparar ambiente C++ (Clang, sem GCC LTO incompatível com rust-lld)..."
+export CC=clang
+export CXX=clang++
+export CFLAGS="${CFLAGS:-}"
+export CXXFLAGS="${CXXFLAGS:-}"
+export CFLAGS="${CFLAGS//-flto=auto/}"
+export CXXFLAGS="${CXXFLAGS//-flto=auto/}"
+cargo clean --manifest-path src-tauri/Cargo.toml --release -p llama-cpp-sys-2 -p llama-cpp-2 2>/dev/null || true
+
 echo "-> A compilar motor de IA isolado (kwrl-llm-worker)..."
 # shellcheck disable=SC2086
 cargo build --manifest-path src-tauri/Cargo.toml --release --bin kwrl-llm-worker ${CARGO_FLAGS}

@@ -9,6 +9,7 @@ license=('MIT')
 provides=('kwrl' 'corvo-desktop')
 conflicts=('corvo-desktop')
 replaces=('corvo-desktop')
+options=('!lto' '!debug')
 depends=(
     'webkit2gtk-4.1'
     'gtk3'
@@ -43,10 +44,17 @@ build() {
     npm run build
 
     # 2. Compila os binários Rust em release
+    # Desativa flags -flto do GCC e utiliza Clang para compatibilidade total de símbolos C++ com rust-lld
+    export CC=clang
+    export CXX=clang++
+    export CFLAGS="${CFLAGS//-flto=auto/}"
+    export CXXFLAGS="${CXXFLAGS//-flto=auto/}"
+    cargo clean --manifest-path src-tauri/Cargo.toml --release -p llama-cpp-sys-2 -p llama-cpp-2 2>/dev/null || true
+
     # Nota: para ativar aceleração CUDA passe CARGO_FEATURES="--features cuda"
     # ou para Vulkan passe CARGO_FEATURES="--features vulkan"
-    npx tauri build --no-bundle ${CARGO_FEATURES:-}
     cargo build --manifest-path src-tauri/Cargo.toml --release --bin kwrl-llm-worker ${CARGO_FEATURES:-}
+    npx tauri build --no-bundle ${CARGO_FEATURES:-}
 }
 
 package() {
