@@ -12,6 +12,11 @@ echo ""
 
 INSTALL_PREFIX="${INSTALL_PREFIX:-/usr/local}"
 
+# 0. Terminar processos em execução
+echo "A terminar processos em execução..."
+pkill -f kwrl 2>/dev/null || true
+pkill -f corvo 2>/dev/null || true
+
 # 1. Se foi instalado como pacote pacman, remove via pacman
 if pacman -Qi kwrl-desktop &>/dev/null; then
     echo "A remover pacote pacman 'kwrl-desktop'..."
@@ -60,12 +65,14 @@ echo ""
 DATA_DIRS=(
     "${HOME}/.local/share/app.kwrl.mail"
     "${HOME}/.local/share/pt.corvo.mail"
+    "${HOME}/.local/share/yoot-mail"
 )
 
 echo "Deseja também apagar todos os dados locais do utilizador (base de dados SQLite e sessão)? [s/N]"
 read -rp "Selecione uma opção: " PURGE_DATA
 
 if [[ "${PURGE_DATA}" =~ ^[sSyY]$ ]]; then
+    rm -rf "${HOME}/.cache/app.kwrl.mail" "${HOME}/.config/app.kwrl.mail" 2>/dev/null || true
     echo "Deseja preservar o ficheiro de modelo de IA (2.1 GB) para evitar descarregar novamente? [S/n]"
     read -rp "Selecione uma opção: " KEEP_MODELS
 
