@@ -1255,6 +1255,62 @@ pub fn clean_email_placeholders_and_duplicates(
     cleaned
 }
 
+/// Limpa meta-texto, prefixos explicativos e linhas de relatório geradas por modelos durante tradução
+pub fn clean_translation_meta_text(raw: &str) -> String {
+    let mut lines = Vec::new();
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        let lower = trimmed.to_lowercase();
+        // Remove linhas de meta-texto, notas e checklists explicativos
+        if lower.starts_with("- manteve ")
+            || lower.starts_with("manteve a estrutura")
+            || lower.starts_with("- mantive ")
+            || lower.starts_with("mantive a estrutura")
+            || lower.starts_with("nota:")
+            || lower.starts_with("note:")
+            || lower.starts_with("observação:")
+            || lower.starts_with("observación:")
+            || lower.starts_with("a tradução manteve")
+            || lower.starts_with("la traducción mantuvo")
+            || lower.starts_with("the translation maintains")
+            || lower.starts_with("espero que ajude")
+            || lower.starts_with("espero que te sirva")
+            || lower.starts_with("aqui está a tradução")
+            || lower.starts_with("aquí está la traducción")
+            || lower.starts_with("here is the translation")
+        {
+            continue;
+        }
+        lines.push(line);
+    }
+    let mut joined = lines.join("\n").trim().to_string();
+
+    // Remove prefixos comuns como "Tradução: " ou "Traducción: " ou "Translation: "
+    let prefixes = [
+        "Tradução:",
+        "tradução:",
+        "Traducción:",
+        "traducción:",
+        "Translation:",
+        "translation:",
+        "Traduction:",
+        "traduction:",
+    ];
+    for p in prefixes {
+        if joined.starts_with(p) {
+            joined = joined[p.len()..].trim().to_string();
+        }
+    }
+
+    // Remove aspas envolventes se o modelo colocou toda a tradução entre aspas
+    if (joined.starts_with('"') && joined.ends_with('"') && joined.len() >= 2)
+        || (joined.starts_with('«') && joined.ends_with('»') && joined.len() >= 2)
+    {
+        joined = joined[1..joined.len() - 1].trim().to_string();
+    }
+    joined
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1498,5 +1554,16 @@ mod tests {
         assert!(cleaned.contains("Afonso"));
         assert!(cleaned.contains("Estimado(a) Carlos,"));
         assert!(!cleaned.contains("Exmo. Senhor(a)"));
+    }
+
+    #[test]
+    fn cleans_translation_meta_text_and_checklists() {
+        let noisy = "Traducción:\nHola, ¿todo bien?\n\n- Manteve a estrutura e os parágrafos com quebras de linha de e-mail.";
+        let cleaned = clean_translation_meta_text(noisy);
+        assert_eq!(cleaned, "Hola, ¿todo bien?");
+
+        let quoted = "\"Hello, how are you?\"\n\nNota: Tradução para inglês mantida.";
+        let cleaned_q = clean_translation_meta_text(quoted);
+        assert_eq!(cleaned_q, "Hello, how are you?");
     }
 }

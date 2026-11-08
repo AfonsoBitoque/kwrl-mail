@@ -677,6 +677,14 @@ impl LlmSupervisor {
         };
 
         let lang = target_lang.unwrap_or("inglês");
+        let (target_lang_pt, target_lang_en) = match lang.to_lowercase().trim() {
+            "espanhol" | "es" | "spanish" | "español" => ("espanhol", "Spanish"),
+            "francês" | "frances" | "fr" | "french" | "français" => ("francês", "French"),
+            "alemão" | "alemao" | "de" | "german" | "deutsch" => ("alemão", "German"),
+            "português" | "portugues" | "pt" | "portuguese" => ("português europeu", "European Portuguese"),
+            "italiano" | "it" | "italian" => ("italiano", "Italian"),
+            _ => ("inglês", "English"),
+        };
         let inst = custom_instruction.unwrap_or("Melhora o texto com clareza.");
         let system_prompt = match action {
             "formal" => format!("\
@@ -753,15 +761,14 @@ ESTRUTURAÇÃO:\n\
 - Elimina rodeios e palavras supérfluas, preservando os pontos principais.\n\
 - SEM META-TEXTO: Devolve APENAS o texto condensado formatado.".to_string(),
 
-            "translate" => format!("\
-És o tradutor de correspondência do Kwrl.\n\
-O teu papel é traduzir o texto fornecido pelo utilizador fielmente para {}.\n\
+            "translate" => format!(
+                "You are an expert translator. Your role is to translate the user's text into {target_lang_en} ({target_lang_pt}).\n\
 \n\
-ESTRUTURAÇÃO:\n\
-- Formata a tradução com estrutura limpa de e-mail, separando saudações, parágrafos e despedidas com quebras de linha adequadas (duplo enter).\n\
-- Tradução natural, idiomática e impecável para contexto de e-mail.\n\
-- Preserva nomes próprios, links e formatação.\n\
-- SEM META-TEXTO: Devolve APENAS o texto traduzido final.", lang),
+STRICT RULES:\n\
+1. Output ONLY the direct translation in {target_lang_en}. Nothing else.\n\
+2. Absolutely NO notes, NO explanations, NO bullet points (- or *), NO comments, NO meta-text.\n\
+3. Preserve the exact meaning, paragraph breaks, and tone of the original message."
+            ),
 
             _ => format!("\
 És o assistente de redação do Kwrl.\n\
@@ -787,8 +794,7 @@ REGRAS:\n\
                 text.trim()
             ),
             "translate" => format!(
-                "<TEXTO_BRUTO>\n{}\n</TEXTO_BRUTO>\n\nTraduz o texto acima para {} mantendo a estrutura e parágrafos com quebras de linha de e-mail:",
-                lang,
+                "Translate the following text into {target_lang_en} ({target_lang_pt}):\n\n{}\n\nTranslation in {target_lang_en}:",
                 text.trim()
             ),
             _ => format!(
@@ -836,6 +842,33 @@ REGRAS:\n\
         } else {
             return Err(LlmError::ModelNotConfigured);
         };
+
+        if action == "translate" {
+            let mut cleaned = crate::prompt_guard::clean_translation_meta_text(&completed.full_text);
+            // Se o texto original não tinha marcadores de lista (* ou -), remove traço inicial se o modelo tiver adicionado
+            if !text.trim().starts_with('-') && !text.trim().starts_with('*') {
+                if cleaned.starts_with("- ") {
+                    cleaned = cleaned[2..].trim_start().to_string();
+                } else if cleaned.starts_with("* ") {
+                    cleaned = cleaned[2..].trim_start().to_string();
+                }
+            }
+            completed.full_text = cleaned;
+            return Ok(completed);
+        }
+
+        let is_custom_translation = action != "translate"
+            && custom_instruction
+                .map(|ci| {
+                    let l = ci.to_lowercase();
+                    l.contains("traduz") || l.contains("translate") || l.contains("tradução")
+                })
+                .unwrap_or(false);
+
+        if is_custom_translation {
+            completed.full_text = crate::prompt_guard::clean_translation_meta_text(&completed.full_text);
+            return Ok(completed);
+        }
 
         // 1. Limpa marcadores literais ([Nome], [Seu Nome]) e saudações duplicadas
         let cleaned_text = crate::prompt_guard::clean_email_placeholders_and_duplicates(
