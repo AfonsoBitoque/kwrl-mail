@@ -70,11 +70,13 @@ Write-Host "-> A instalar dependências Node e compilar Frontend (Vite)..." -For
 npm install
 npm run build
 
-Write-Host "-> A compilar binários nativos Rust de produção..." -ForegroundColor Gray
+Write-Host "-> A compilar binários nativos Rust de produção (com assets embutidos)..." -ForegroundColor Gray
 if ($cargoFeatures) {
-    cargo build --manifest-path src-tauri\Cargo.toml --release $cargoFeatures
+    cargo build --manifest-path src-tauri\Cargo.toml --release --bin kwrl-llm-worker $cargoFeatures
+    npx tauri build --no-bundle $cargoFeatures
 } else {
-    cargo build --manifest-path src-tauri\Cargo.toml --release
+    cargo build --manifest-path src-tauri\Cargo.toml --release --bin kwrl-llm-worker
+    npx tauri build --no-bundle
 }
 
 # [4/4] Instalação no Sistema

@@ -166,10 +166,19 @@ export interface Translations {
     formalDesc: string;
     shortDesc: string;
     langEnglish: string;
+    langPortuguese: string;
     langSpanish: string;
     langFrench: string;
     langGerman: string;
     customPromptApply: string;
+    aiNoticeOrganize: string;
+    aiNoticeFormal: string;
+    aiNoticeShort: string;
+    aiNoticeTranslate: string;
+    aiNoticeCustom: string;
+    aiNoticeSuccess: string;
+    aiNoticeError: string;
+    forwardedMessage: string;
   };
   aiPanel: {
     title: string;

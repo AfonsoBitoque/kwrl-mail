@@ -1,156 +1,118 @@
-# Guia de Instalação Rápida — Kwrl
+# Installation Guide — Kwrl Mail
 
-Este documento detalha o processo de instalação fácil e automatizada do **Kwrl** nos três principais sistemas operativos: **Arch Linux**, **macOS** e **Windows**.
+This guide covers automated and manual installation of **Kwrl Mail** on **Arch Linux**, **Ubuntu / Debian / Fedora**, **macOS**, and **Windows**.
 
 ---
 
-## ⚡ Instalação Rápida Universal (Linux & Mac)
+## ⚡ Quick One-Command Install (Linux & macOS)
 
-Se já clonou o repositório, execute o script de instalação para o seu sistema:
+Clone the repository and run the universal installer or platform-specific script:
 
 ```bash
-git clone https://github.com/AfonsoBitoque/yoot-mail.git
-cd yoot-mail
+git clone https://github.com/AfonsoBitoque/kwrl-mail.git
+cd kwrl-mail
 
-# No Arch Linux:
-./scripts/install-arch.sh
+# Universal auto-detecting installer (macOS / Arch Linux / Ubuntu / Fedora):
+./install.sh
 
-# No macOS:
-./scripts/install-mac.sh
+# Or run your platform script directly:
+./scripts/install-arch.sh   # Arch Linux & derivatives
+./scripts/install-mac.sh    # macOS (Apple Silicon & Intel)
 ```
 
 ---
 
-## 🐧 1. Arch Linux (e derivados: Manjaro, EndeavourOS, CachyOS)
+## 🐧 1. Arch Linux (and derivatives: Manjaro, EndeavourOS, CachyOS)
 
-O Kwrl dispõe de suporte nativo de primeira classe para Arch Linux.
+Kwrl Mail provides first-class native support for Arch Linux.
 
-### Opção A: Script de Instalação Automática (Recomendado)
-Um único comando que valida as dependências via `pacman`, pergunta se pretende aceleração por GPU (CUDA/Vulkan) ou CPU, compila e adiciona o Kwrl ao seu menu de aplicações:
+### Option A: Automated Install Script (Recommended)
+Validates system dependencies via `pacman`, lets you choose between CPU (AVX2/AVX-512), NVIDIA CUDA, or Vulkan GPU acceleration, compiles the production bundle, and registers Kwrl in your application launcher:
 
 ```bash
 ./scripts/install-arch.sh
 ```
 
-### Opção B: Via `PKGBUILD` (`makepkg`)
-Se prefere que a instalação seja gerida como um pacote nativo do `pacman`:
+### Option B: Via `PKGBUILD` (`makepkg`)
+If you prefer managing Kwrl as a native `pacman` package:
 
 ```bash
 cd packaging/arch
 makepkg -si
 ```
-Isto compilará e criará o pacote `.pkg.tar.zst`, instalando os binários em `/usr/bin/kwrl` e `/usr/bin/kwrl-llm-worker`, o ficheiro `.desktop` em `/usr/share/applications/` e os respetivos ícones.
+This builds the `.pkg.tar.zst` package and installs `/usr/bin/kwrl`, `/usr/bin/kwrl-llm-worker`, `/usr/share/applications/kwrl.desktop`, and application icons.
 
-### Dependências Manuais (se preferir compilar manualmente)
+### Manual Dependencies (Arch Linux)
 ```bash
 sudo pacman -S --needed base-devel cmake clang webkit2gtk-4.1 gtk3 glib2 openssl nodejs npm rust gnome-keyring
 npm install && npm run build
-npx tauri build --no-bundle
 cargo build --manifest-path src-tauri/Cargo.toml --release --bin kwrl-llm-worker
+npx tauri build --no-bundle
 ```
 
 ---
 
 ## 🍏 2. macOS (Apple Silicon M1/M2/M3/M4 & Intel)
 
-No macOS, o Kwrl utiliza a API Metal nativa para inferência gráfica ultra-rápida e o Apple Keychain para guardar credenciais OAuth.
+On macOS, Kwrl uses Apple Metal for hardware-accelerated local LLM inference and the native macOS Keychain for OAuth token storage.
 
-### Opção A: Script de Instalação Automática (Recomendado)
-Compila o frontend, compila o binário otimizado, monta o bundle `Kwrl.app`, aplica a assinatura de segurança local e instala em `/Applications/Kwrl.app`:
+### Option A: Automated Install Script (Recommended)
+Builds the frontend, compiles both native Rust binaries with embedded production assets, packages `Kwrl.app`, signs it locally, and installs it to `/Applications/Kwrl.app`:
 
 ```bash
 ./scripts/install-mac.sh
 ```
 
-### Opção B: Manual
+### Option B: Manual Build
 ```bash
 npm install && npm run build
-npx tauri build --no-bundle
 cargo build --manifest-path src-tauri/Cargo.toml --release --bin kwrl-llm-worker
+npx tauri build --no-bundle
 ```
-O executável `Kwrl.app` ficará pronto em `/Applications` ou em `src-tauri/target/release/bundle/macos/Kwrl.app`.
 
 ---
 
-## 🪟 3. Windows (Windows 10 e Windows 11)
+## 🪟 3. Windows (Windows 10 & Windows 11)
 
-No Windows, o Kwrl utiliza o **Microsoft Edge WebView2** (pré-instalado nativamente no Windows 10 e 11) e o **Windows Credential Manager** para guardar credenciais.
+On Windows, Kwrl uses **Microsoft Edge WebView2** (pre-installed on Windows 10/11) and **Windows Credential Manager** for secure OAuth storage.
 
-### Opção A: Script PowerShell Automático (Recomendado)
-Abra o **PowerShell** na pasta do projeto e execute:
+### Option A: Automated PowerShell Installer (Recommended)
+Open **PowerShell** in the repository folder and run:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\install-windows.ps1
 ```
 
-O script:
-1. Valida se o Node.js e o Rust Toolchain (MSVC) estão instalados.
-2. Pergunta se pretende ativar aceleração por GPU NVIDIA (CUDA) ou Vulkan.
-3. Compila o cliente e o motor de IA isolado.
-4. Instala a aplicação em `%LOCALAPPDATA%\Programs\Kwrl`.
-5. Cria atalhos no **Menu Iniciar** e no **Ambiente de Trabalho**.
-6. Inicia o Kwrl automaticamente.
-
-### Opção B: Gerar Instalador Executável (.msi ou .exe)
-Para criar um instalador distribuível padrão do Windows:
-```powershell
-npx @tauri-apps/cli build
-```
-O instalador NSIS ficará gerado em `src-tauri\target\release\bundle\nsis\`.
+The script:
+1. Checks for Node.js and the Rust Toolchain (MSVC).
+2. Prompts for CPU, NVIDIA CUDA, or Vulkan GPU acceleration.
+3. Builds the desktop client and isolated `kwrl-llm-worker.exe` sidecar.
+4. Installs to `%LOCALAPPDATA%\Programs\Kwrl` and creates Start Menu & Desktop shortcuts.
 
 ---
 
-## 🚀 Aceleração de Hardware para o Motor de IA (Local GGUF)
+## 🚀 Hardware Acceleration for the Local AI Engine (`.gguf`)
 
-O processo de inferência `kwrl-llm-worker` adapta-se ao hardware disponível:
+The isolated `kwrl-llm-worker` process adapts to your hardware:
 
-| Plataforma | Modo Padrão | Modo Acelerado por GPU |
+| Platform | Default Mode | Optional GPU Acceleration |
 | :--- | :--- | :--- |
-| **macOS** | **Apple Metal** (Automático, zero configuração) | Totalmente acelerado pelo Neural Engine e GPU Metal |
-| **Arch Linux** | **CPU Multi-thread** (AVX2/AVX-512) | **CUDA**: `--features cuda` <br> **Vulkan**: `--features vulkan` |
-| **Windows** | **CPU Multi-thread** (AVX2/AVX-512) | **CUDA**: `--features cuda` <br> **Vulkan**: `--features vulkan` |
+| **macOS** | **Apple Metal** (Automatic, zero config) | Full Apple Silicon GPU & Unified Memory acceleration |
+| **Linux** | **Multi-thread CPU** (AVX2/AVX-512) | **CUDA**: `--features cuda` <br> **Vulkan**: `--features vulkan` |
+| **Windows** | **Multi-thread CPU** (AVX2/AVX-512) | **CUDA**: `--features cuda` <br> **Vulkan**: `--features vulkan` |
 
 ---
 
-## 📂 Onde ficam guardados os dados e modelos?
+## 📂 Local Data & Model Storage Paths
 
-A base de dados SQLite offline e os modelos locais GGUF respeitam as pastas padrão de cada sistema:
+All offline SQLite databases and `.gguf` models are stored locally in your user directory:
 
-- **Linux (Arch):** `~/.local/share/app.kwrl.mail/`
-  - Modelos IA: `~/.local/share/app.kwrl.mail/models/`
-  - Base de dados: `~/.local/share/app.kwrl.mail/kwrl_cache.sqlite3`
-  *(Migração transparente: caso já existam dados do Corvo em `pt.corvo.mail`, são migrados automaticamente sem qualquer perda).*
+- **Linux:** `~/.local/share/app.kwrl.mail/`
+  - AI Models: `~/.local/share/app.kwrl.mail/models/`
+  - Database: `~/.local/share/app.kwrl.mail/kwrl_cache.sqlite3`
 - **macOS:** `~/Library/Application Support/app.kwrl.mail/`
-  - Modelos IA: `~/Library/Application Support/app.kwrl.mail/models/`
-  - Base de dados: `~/Library/Application Support/app.kwrl.mail/kwrl_cache.sqlite3`
+  - AI Models: `~/Library/Application Support/app.kwrl.mail/models/`
+  - Database: `~/Library/Application Support/app.kwrl.mail/kwrl_cache.sqlite3`
 - **Windows:** `%LOCALAPPDATA%\app.kwrl.mail\`
-  - Modelos IA: `%LOCALAPPDATA%\app.kwrl.mail\models\`
-  - Base de dados: `%LOCALAPPDATA%\app.kwrl.mail\kwrl_cache.sqlite3`
-
----
-
-## 🔑 Configuração das Credenciais Google Cloud (Modelo BYOK — Chave Própria Gratuita)
-
-O Kwrl adota o modelo **BYOK (*Bring Your Own Keys*)**: para garantir privacidade total sem intermediários e sem necessidade de pagar auditorias anuais comerciais à Google (CASA), cada utilizador cria a sua própria credencial gratuita no Google Cloud:
-
-1. **Ativar a Gmail API:**
-   - Acede à [Google Cloud Console — Gmail API](https://console.cloud.google.com/apis/library/gmail.googleapis.com).
-   - Cria um projeto gratuito (ex.: `Kwrl Mail`) e clica em **Ativar** (*Enable*).
-
-2. **Ecrã de Consentimento & Público-Alvo / Utilizadores de Teste (Passo Crítico):**
-   - No menu lateral, entra em [OAuth consent screen (Ecrã de consentimento OAuth)](https://console.cloud.google.com/apis/credentials/consent).
-   - Seleciona **Externo** (*External*) e preenche o nome da app (`Kwrl`) e o teu e-mail.
-   - ⚠️ **MUITO IMPORTANTE (Público-alvo / Utilizadores de Teste):**
-     Na secção **Público-alvo** (*Audience*) ou **Utilizadores de teste** (*Test users*), clica obrigatoriamente em **"+ Adicionar utilizadores"** (*+ Add users*) e introduz todos os endereços Gmail que pretendes utilizar no Kwrl.
-     *(Se não adicionares o teu e-mail nesta lista de utilizadores de teste, a Google recusará a ligação com `Erro 403: access_denied`).*
-
-3. **Criar Credencial do tipo "Aplicação de Computador" (Desktop app):**
-   - Vai a [Credentials (Credenciais)](https://console.cloud.google.com/apis/credentials).
-   - Clica em **+ Criar Credenciais** → **ID do cliente OAuth**.
-   - Tipo de aplicação: escolhe **Aplicação de Computador** (*Desktop app*).
-   - Clica em **Criar** e depois no botão de **Transferir JSON** (*Download JSON*).
-
-4. **Colar no Kwrl:**
-   - Abre o ficheiro `.json` descarregado com qualquer editor de texto.
-   - Copia todo o conteúdo (começa por `{"installed": ...}`) e cola diretamente na janela do Kwrl.
-   - Clica em **Guardar e Continuar com Google**: a tua sessão fica autenticada e as chaves protegidas no cofre do sistema operativo (Keychain / Secret Service).
+  - AI Models: `%LOCALAPPDATA%\app.kwrl.mail\models\`
+  - Database: `%LOCALAPPDATA%\app.kwrl.mail\kwrl_cache.sqlite3`

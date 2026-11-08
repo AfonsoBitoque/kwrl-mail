@@ -894,7 +894,7 @@ export const App: React.FC = () => {
     const targetMsg = openedThread?.messages && openedThread.messages[openedThread.messages.length - 1];
     if (!openedThread || !targetMsg) return;
 
-    const fwdHeader = `\n\n---------- Mensagem encaminhada ----------\nDe: ${targetMsg.senderName} <${targetMsg.senderEmail}>\nData: ${targetMsg.displayDate}\nAssunto: ${openedThread.subject}\nPara: ${targetMsg.toHeader}\n\n`;
+    const fwdHeader = `\n\n${t('compose.forwardedMessage')}\n${t('readingPane.from')}: ${targetMsg.senderName} <${targetMsg.senderEmail}>\n${t('readingPane.date')}: ${targetMsg.displayDate}\n${t('compose.subject')}: ${openedThread.subject}\n${t('readingPane.to')}: ${targetMsg.toHeader}\n\n`;
     const fwdBody = fwdHeader + (targetMsg.bodyPlain || targetMsg.snippet);
 
     setComposeInitialData({
@@ -1050,28 +1050,28 @@ export const App: React.FC = () => {
     setAiPanelOpen(true);
     let chipContext = userContextByThread[selectedThreadId] || '';
 
-    if (chip === 'Confirmar') {
-      chipContext = 'Confirmar disponibilidade e total acordo com a mensagem recebida.';
+    if (chip === 'Confirmar' || chip === t('aiPanel.chipConfirm')) {
+      chipContext = t('aiPanel.chipConfirmDesc');
       setUserContextByThread((prev) => ({ ...prev, [selectedThreadId]: chipContext }));
       setActiveTier('rascunho-curto');
       void handleGenerateAiTier('rascunho-curto', chipContext);
-    } else if (chip === 'Pedir mais tempo') {
-      chipContext = 'Agradecer a mensagem, explicar com simpatia que preciso de tempo para analisar o assunto e que voltarei ao contacto nos próximos dias com uma resposta.';
+    } else if (chip === 'Pedir mais tempo' || chip === t('aiPanel.chipMoreTime')) {
+      chipContext = t('aiPanel.chipMoreTimeDesc');
       setUserContextByThread((prev) => ({ ...prev, [selectedThreadId]: chipContext }));
       setActiveTier('rascunho-curto');
       void handleGenerateAiTier('rascunho-curto', chipContext);
-    } else if (chip === 'Recusar cordialmente') {
-      chipContext = 'Agradecer a mensagem mas recusar cordialmente por indisponibilidade neste momento.';
+    } else if (chip === 'Recusar cordialmente' || chip === t('aiPanel.chipDecline')) {
+      chipContext = t('aiPanel.chipDeclineDesc');
       setUserContextByThread((prev) => ({ ...prev, [selectedThreadId]: chipContext }));
       setActiveTier('rascunho-estruturado');
       void handleGenerateAiTier('rascunho-estruturado', chipContext);
-    } else if (chip === 'Frase') {
+    } else if (chip === 'Frase' || chip === t('aiPanel.cdlrOneSentence')) {
       setActiveTier('frase');
       void handleGenerateAiTier('frase', chipContext);
-    } else if (chip === 'Rascunho curto') {
+    } else if (chip === 'Rascunho curto' || chip === t('aiPanel.cdlrShortDraft')) {
       setActiveTier('rascunho-curto');
       void handleGenerateAiTier('rascunho-curto', chipContext);
-    } else if (chip === 'Estruturado') {
+    } else if (chip === 'Estruturado' || chip === t('aiPanel.cdlrStructured')) {
       setActiveTier('rascunho-estruturado');
       void handleGenerateAiTier('rascunho-estruturado', chipContext);
     }

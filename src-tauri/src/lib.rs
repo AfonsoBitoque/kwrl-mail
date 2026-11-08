@@ -1919,10 +1919,16 @@ async fn stream_cdlr_suggestion(
 
     let (last_sender, combined_body) = format_thread_for_ai(&detail);
     let custom_sig = state.db.get_kv(KV_USER_SIGNATURE_NAME).ok().flatten();
+    let ui_lang = state
+        .db
+        .get_kv(KV_UI_LANGUAGE)
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "en".to_string());
 
     state
         .llm
-        .stream_email_assistance_for_account_with_context(
+        .stream_email_assistance_for_account_with_context_and_lang(
             &clean_req_id,
             &clean_tid,
             clean_tier,
@@ -1932,6 +1938,7 @@ async fn stream_cdlr_suggestion(
             &combined_body,
             custom_sig.as_deref(),
             extra_context.as_deref(),
+            &ui_lang,
             move |token_evt| {
                 let _ = app.emit("ai-token", &token_evt);
             },
@@ -1984,10 +1991,16 @@ async fn rewrite_text_with_ai(
                 .unwrap_or_default();
             crate::prompt_guard::resolve_friendly_user_name(&primary_email, None)
         });
+    let ui_lang = state
+        .db
+        .get_kv(KV_UI_LANGUAGE)
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "en".to_string());
 
     state
         .llm
-        .stream_text_ai_action(
+        .stream_text_ai_action_with_lang(
             &req_id_clean,
             clean_text,
             clean_action,
@@ -1995,6 +2008,7 @@ async fn rewrite_text_with_ai(
             Some(&user_sig),
             target_lang.as_deref(),
             custom_instruction.as_deref(),
+            &ui_lang,
             move |token_evt| {
                 let _ = app.emit("ai-token", &token_evt);
             },

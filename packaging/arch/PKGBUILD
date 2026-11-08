@@ -2,9 +2,9 @@
 pkgname=kwrl-desktop
 pkgver=0.2.0
 pkgrel=1
-pkgdesc="Cliente de e-mail calmo e seguro com IA local llama.cpp e Gmail OAuth2"
+pkgdesc="Calm, private, local-first email client with local llama.cpp AI and Gmail OAuth2"
 arch=('x86_64' 'aarch64')
-url="https://github.com/AfonsoBitoque/yoot-mail"
+url="https://github.com/AfonsoBitoque/kwrl-mail"
 license=('MIT')
 provides=('kwrl' 'corvo-desktop')
 conflicts=('corvo-desktop')
@@ -65,7 +65,6 @@ package() {
 
     # Entrada no lançador de aplicações (.desktop)
     install -Dm644 "${ROOT_DIR}/packaging/linux/kwrl.desktop" "${pkgdir}/usr/share/applications/kwrl.desktop"
-    install -Dm644 "${ROOT_DIR}/packaging/linux/corvo.desktop" "${pkgdir}/usr/share/applications/corvo.desktop"
 
     # Ícones da aplicação
     install -Dm644 "${ROOT_DIR}/src-tauri/icons/32x32.png" "${pkgdir}/usr/share/icons/hicolor/32x32/apps/kwrl.png"

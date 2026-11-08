@@ -403,14 +403,14 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
     setIsAiRevising(true);
     setAiNotice(
       action === 'organize_and_correct'
-        ? 'A organizar parágrafos e tirar erros...'
+        ? t('compose.aiNoticeOrganize')
         : action === 'formal'
-        ? 'A reescrever em tom formal...'
+        ? t('compose.aiNoticeFormal')
         : action === 'short'
-        ? 'A condensar o texto...'
+        ? t('compose.aiNoticeShort')
         : action === 'custom'
-        ? 'A aplicar alteração personalizada...'
-        : `A traduzir para ${targetLang || 'inglês'}...`
+        ? t('compose.aiNoticeCustom')
+        : t('compose.aiNoticeTranslate')
     );
 
     const recipient =
@@ -428,12 +428,13 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
       });
       if (res.fullText && res.fullText.trim()) {
         onDraftChange(res.fullText.trim());
-        setAiNotice('Texto revisto pela IA!');
+        setAiNotice(t('compose.aiNoticeSuccess'));
         setTimeout(() => setAiNotice(null), 3500);
       }
     } catch (err) {
       console.error('Erro na IA:', err);
-      setAiNotice('Falha ao processar com a IA.');
+      const msg = err instanceof Error ? err.message : String(err);
+      setAiNotice(t('compose.aiNoticeError', { error: msg }));
       setTimeout(() => setAiNotice(null), 4000);
     } finally {
       setIsAiRevising(false);
@@ -1193,6 +1194,21 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                         </button>
                         <button
                           type="button"
+                          onClick={() => handleAiAction('translate', 'português')}
+                          style={{
+                            padding: '4px 6px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--line)',
+                            backgroundColor: 'var(--bg)',
+                            color: 'var(--ink)',
+                            fontSize: '10.5px',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {t('compose.langPortuguese')}
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleAiAction('translate', 'espanhol')}
                           style={{
                             padding: '4px 6px',
@@ -1232,6 +1248,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                             color: 'var(--ink)',
                             fontSize: '10.5px',
                             cursor: 'pointer',
+                            gridColumn: '1 / -1',
                           }}
                         >
                           {t('compose.langGerman')}
@@ -1323,7 +1340,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                       setCustomPromptOpen(false);
                     }
                   }}
-                  placeholder="Ex: 'Muda o tom para mais amigável e diz que só posso reunir quinta-feira à tarde' (Enter para aplicar)"
+                  placeholder={t('compose.instructionPlaceholder')}
                   style={{
                     flex: 1,
                     padding: '4px 8px',

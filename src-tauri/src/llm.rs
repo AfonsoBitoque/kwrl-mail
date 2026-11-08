@@ -25,9 +25,8 @@ use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::Mutex;
 
 use crate::prompt_guard::{
-    build_cdlr_messages_with_account, build_cdlr_messages_with_context,
-    enforce_european_portuguese_rules, inspect_untrusted_email, sanitize_plain_text_output,
-    InjectionInspection,
+    build_cdlr_messages_with_account, build_cdlr_messages_with_context_and_lang,
+    inspect_untrusted_email, sanitize_plain_text_output, InjectionInspection,
 };
 
 pub const DEFAULT_CONTEXT_WINDOW: u32 = 4096;
@@ -559,6 +558,40 @@ impl LlmSupervisor {
         untrusted_body: &str,
         custom_user_name: Option<&str>,
         extra_context: Option<&str>,
+        on_token: F,
+    ) -> Result<InferenceCompleted, LlmError>
+    where
+        F: FnMut(AiTokenPayload) + Send,
+    {
+        self.stream_email_assistance_for_account_with_context_and_lang(
+            request_id,
+            thread_id,
+            tier,
+            user_account,
+            subject,
+            sender,
+            untrusted_body,
+            custom_user_name,
+            extra_context,
+            "pt",
+            on_token,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn stream_email_assistance_for_account_with_context_and_lang<F>(
+        &self,
+        request_id: &str,
+        thread_id: &str,
+        tier: &str,
+        user_account: &str,
+        subject: &str,
+        sender: &str,
+        untrusted_body: &str,
+        custom_user_name: Option<&str>,
+        extra_context: Option<&str>,
+        ui_lang: &str,
         mut on_token: F,
     ) -> Result<InferenceCompleted, LlmError>
     where
@@ -574,7 +607,25 @@ impl LlmSupervisor {
             ));
         }
 
-        let (sys_prompt, usr_prompt) = build_cdlr_messages_with_context(
+        let effective_lang = if tier == "resumo-calmo" {
+            match ui_lang.trim().to_lowercase().as_str() {
+                "pt" => "pt",
+                "fr" => "fr",
+                "es" => "es",
+                "en" => "en",
+                _ => crate::prompt_guard::detect_text_language(
+                    &format!("{} {}", subject, untrusted_body),
+                    ui_lang,
+                ),
+            }
+        } else {
+            crate::prompt_guard::detect_text_language(
+                &format!("{} {}", subject, untrusted_body),
+                ui_lang,
+            )
+        };
+
+        let (sys_prompt, usr_prompt) = build_cdlr_messages_with_context_and_lang(
             tier,
             user_account,
             subject,
@@ -582,6 +633,7 @@ impl LlmSupervisor {
             untrusted_body,
             custom_user_name,
             extra_context,
+            ui_lang,
         );
         let prompt = format!(
             "<|im_start|>system\n{}<|im_end|>\n<|im_start|>user\n{}<|im_end|>\n<|im_start|>assistant\n",
@@ -599,41 +651,45 @@ impl LlmSupervisor {
         let cfg = self.config.lock().await.clone();
 
         // 2. Caminho Principal: Motor oficial Kwrl em processo sidecar isolado (§2.1 & §3.3)
-        if let Some(ref model_path) = cfg.model_path {
-            return self
-                .stream_via_isolated_sidecar(
-                    request_id,
-                    thread_id,
-                    tier,
-                    model_path,
-                    cfg.context_size,
-                    &prompt,
-                    &sys_prompt,
-                    &usr_prompt,
-                    max_tokens,
-                    inspection,
-                    &mut on_token,
-                )
-                .await;
-        }
+        let mut completed = if let Some(ref model_path) = cfg.model_path {
+            self.stream_via_isolated_sidecar(
+                request_id,
+                thread_id,
+                tier,
+                model_path,
+                cfg.context_size,
+                &prompt,
+                &sys_prompt,
+                &usr_prompt,
+                max_tokens,
+                inspection,
+                &mut on_token,
+            )
+            .await?
+        } else if cfg.allow_ollama_fallback {
+            // 3. Fallback opcional Ollama loopback APENAS se o utilizador o tiver ativado explicitamente (§2.1)
+            self.stream_via_optional_ollama(
+                request_id,
+                thread_id,
+                tier,
+                &cfg.ollama_model_tag,
+                &prompt,
+                cfg.context_size,
+                inspection,
+                &mut on_token,
+            )
+            .await?
+        } else {
+            return Err(LlmError::ModelNotConfigured);
+        };
 
-        // 3. Fallback opcional Ollama loopback APENAS se o utilizador o tiver ativado explicitamente (§2.1)
-        if cfg.allow_ollama_fallback {
-            return self
-                .stream_via_optional_ollama(
-                    request_id,
-                    thread_id,
-                    tier,
-                    &cfg.ollama_model_tag,
-                    &prompt,
-                    cfg.context_size,
-                    inspection,
-                    &mut on_token,
-                )
-                .await;
+        if effective_lang == "pt" {
+            let normalized = crate::prompt_guard::enforce_european_portuguese_rules(completed.full_text.trim());
+            if !normalized.trim().is_empty() {
+                completed.full_text = normalized;
+            }
         }
-
-        Err(LlmError::ModelNotConfigured)
+        Ok(completed)
     }
 
     pub async fn stream_text_ai_action<F>(
@@ -645,6 +701,36 @@ impl LlmSupervisor {
         sender_name: Option<&str>,
         target_lang: Option<&str>,
         custom_instruction: Option<&str>,
+        on_token: F,
+    ) -> Result<InferenceCompleted, LlmError>
+    where
+        F: FnMut(AiTokenPayload) + Send,
+    {
+        self.stream_text_ai_action_with_lang(
+            request_id,
+            text,
+            action,
+            recipient,
+            sender_name,
+            target_lang,
+            custom_instruction,
+            "en",
+            on_token,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn stream_text_ai_action_with_lang<F>(
+        &self,
+        request_id: &str,
+        text: &str,
+        action: &str,
+        recipient: Option<&str>,
+        sender_name: Option<&str>,
+        target_lang: Option<&str>,
+        custom_instruction: Option<&str>,
+        ui_lang: &str,
         mut on_token: F,
     ) -> Result<InferenceCompleted, LlmError>
     where
@@ -676,6 +762,8 @@ impl LlmSupervisor {
             ),
         };
 
+        let effective_lang = crate::prompt_guard::detect_text_language(text, ui_lang);
+
         let lang = target_lang.unwrap_or("inglês");
         let (target_lang_pt, target_lang_en) = match lang.to_lowercase().trim() {
             "espanhol" | "es" | "spanish" | "español" => ("espanhol", "Spanish"),
@@ -685,9 +773,58 @@ impl LlmSupervisor {
             "italiano" | "it" | "italian" => ("italiano", "Italian"),
             _ => ("inglês", "English"),
         };
-        let inst = custom_instruction.unwrap_or("Melhora o texto com clareza.");
-        let system_prompt = match action {
-            "formal" => format!("\
+        let inst = custom_instruction.unwrap_or("Improve the text with clarity.");
+        let (system_prompt, user_prompt) = if action != "translate" && effective_lang != "pt" {
+            let lang_label = match effective_lang {
+                "fr" => "French (français)",
+                "es" => "Spanish (español)",
+                _ => "English",
+            };
+            let greet_rule = match recipient_display_name.as_deref() {
+                Some(name) => format!("The recipient's name is {name}. Start with an appropriate greeting using {name}."),
+                None => "Do NOT use placeholders like '[Name]' or '[Recipient]'. Use a natural direct greeting.".to_string(),
+            };
+            let sys = match action {
+                "formal" => format!(
+                    "You are the formal writing assistant of Kwrl Mail.\n\
+                     Rewrite the user's draft into a polished, natural, professional, and formal email in {lang_label}.\n\
+                     STRICT RULES:\n\
+                     1. Keep the exact language ({lang_label}) and core meaning of the user's draft. Do NOT invent previous messages or unmentioned topics.\n\
+                     2. {greet_rule}\n\
+                     3. Sign off formally with the sender's name: {user_sig}. NEVER output placeholders like '[Your Name]'.\n\
+                     4. Separate greeting, body paragraphs, and sign-off with blank lines (double newline).\n\
+                     5. Output ONLY the final email text with zero meta-text."
+                ),
+                "organize_and_correct" => format!(
+                    "You are the writing and proofreading assistant of Kwrl Mail.\n\
+                     Fix spelling, grammar, and punctuation in the user's draft, and organize it into clean, well-spaced email paragraphs in {lang_label}.\n\
+                     STRICT RULES:\n\
+                     1. Keep the exact language ({lang_label}) and meaning of the original text.\n\
+                     2. {greet_rule}\n\
+                     3. Sign with {user_sig} if appropriate. NEVER output placeholders like '[Name]' or '[Your Name]'.\n\
+                     4. Separate paragraphs with blank lines (double newline).\n\
+                     5. Output ONLY the revised email text with zero meta-text."
+                ),
+                "short" => format!(
+                    "You are the conciseness assistant of Kwrl Mail.\n\
+                     Condense the user's text to make it concise, direct, and clear in {lang_label}, preserving clean paragraph breaks.\n\
+                     Output ONLY the condensed text with zero meta-text."
+                ),
+                _ => format!(
+                    "You are the writing assistant of Kwrl Mail.\n\
+                     Apply the following instruction to the user's text in {lang_label}:\n\
+                     \"{inst}\"\n\
+                     Output ONLY the resulting email text with clean paragraph breaks and zero meta-text."
+                ),
+            };
+            let usr = format!(
+                "<RAW_TEXT>\n{}\n</RAW_TEXT>\n\nOutput the revised text in {lang_label}:",
+                text.trim()
+            );
+            (sys, usr)
+        } else {
+            let sys = match action {
+                "formal" => format!("\
 És o assistente de redação e revisão formal do Kwrl, especialista em correspondência em português europeu (Portugal).\n\
 O teu papel é transformar o texto do utilizador num e-mail formal, natural, polido e perfeitamente estruturado.\n\
 \n\
@@ -722,10 +859,10 @@ REGRAS DE CONTEÚDO E LINGUAGEM (PROIBIÇÕES ESTRITAS):\n\
    - Usa SEMPRE ênclise com infinitivos ('acompanhar-me', 'dizer-me', 'enviar-me', e NUNCA 'me acompanhar', 'me dizer', 'me enviar').\n\
    - Usa 'num / numa' e NUNCA 'em um / em uma'.\n\
 4. SEM META-TEXTO: Escreve apenas o e-mail final formatado.",
-                user_sig, greeting_directive, user_sig, user_sig, greeting_sample, user_sig
-            ),
+                    user_sig, greeting_directive, user_sig, user_sig, greeting_sample, user_sig
+                ),
 
-            "organize_and_correct" => format!("\
+                "organize_and_correct" => format!("\
 És o assistente de redação e revisão do Kwrl, especialista em português europeu (Portugal).\n\
 O teu papel é rever, organizar e estruturar o texto fornecido pelo utilizador.\n\
 \n\
@@ -750,10 +887,10 @@ REGRAS DE REVISÃO E ESTILO:\n\
 - ZERO COLCHETES OU PLACEHOLDERS: NUNCA escrevas '[Nome]' nem '[Seu Nome]'.\n\
 - Usa SEMPRE português de Portugal (pt-PT): ênclise correta ('diz-me', 'envia-me', 'acompanhar-me') e NUNCA próclise brasileira.\n\
 - SEM META-TEXTO: Devolve APENAS o texto final pronto a enviar, sem introduções ou explicações.",
-                user_sig, greeting_directive, user_sig, user_sig, greeting_sample
-            ),
+                    user_sig, greeting_directive, user_sig, user_sig, greeting_sample
+                ),
 
-            "short" => "\
+                "short" => "\
 És o assistente de síntese do Kwrl. O teu papel é condensar o texto fornecido tornando-o conciso, direto e objetivo em português europeu (pt-PT).\n\
 \n\
 ESTRUTURAÇÃO:\n\
@@ -761,16 +898,16 @@ ESTRUTURAÇÃO:\n\
 - Elimina rodeios e palavras supérfluas, preservando os pontos principais.\n\
 - SEM META-TEXTO: Devolve APENAS o texto condensado formatado.".to_string(),
 
-            "translate" => format!(
-                "You are an expert translator. Your role is to translate the user's text into {target_lang_en} ({target_lang_pt}).\n\
+                "translate" => format!(
+                    "You are an expert translator. Your role is to translate the user's text into {target_lang_en} ({target_lang_pt}).\n\
 \n\
 STRICT RULES:\n\
 1. Output ONLY the direct translation in {target_lang_en}. Nothing else.\n\
 2. Absolutely NO notes, NO explanations, NO bullet points (- or *), NO comments, NO meta-text.\n\
 3. Preserve the exact meaning, paragraph breaks, and tone of the original message."
-            ),
+                ),
 
-            _ => format!("\
+                _ => format!("\
 És o assistente de redação do Kwrl.\n\
 O teu papel é cumprir a seguinte instrução ao texto do utilizador:\n\
 \"{}\"\n\
@@ -778,30 +915,32 @@ O teu papel é cumprir a seguinte instrução ao texto do utilizador:\n\
 REGRAS:\n\
 1. Aplica a instrução com precisão ao texto fornecido, estruturando com quebras de linha e parágrafos de e-mail.\n\
 2. SEM META-TEXTO: Devolve APENAS o texto final resultante.", inst),
-        };
+            };
 
-        let user_prompt = match action {
-            "formal" => format!(
-                "<TEXTO_BRUTO>\n{}\n</TEXTO_BRUTO>\n\nReescreve o texto bruto acima num e-mail formal elegante, sem placeholders '[Nome]' nem frases robóticas, dividindo por parágrafos e quebras de linha:",
-                text.trim()
-            ),
-            "organize_and_correct" => format!(
-                "<TEXTO_BRUTO>\n{}\n</TEXTO_BRUTO>\n\nRevê, corrige e organiza o texto bruto acima, dividindo-o em parágrafos espaçados por linhas em branco sem placeholders:",
-                text.trim()
-            ),
-            "short" => format!(
-                "<TEXTO_BRUTO>\n{}\n</TEXTO_BRUTO>\n\nCondensa o texto acima mantendo parágrafos limpos e estruturados com quebras de linha:",
-                text.trim()
-            ),
-            "translate" => format!(
-                "Translate the following text into {target_lang_en} ({target_lang_pt}):\n\n{}\n\nTranslation in {target_lang_en}:",
-                text.trim()
-            ),
-            _ => format!(
-                "<TEXTO_BRUTO>\n{}\n</TEXTO_BRUTO>\n\nAplica a seguinte instrução com quebras de linha estruturadas de e-mail:\n{}",
-                text.trim(),
-                inst
-            ),
+            let usr = match action {
+                "formal" => format!(
+                    "<TEXTO_BRUTO>\n{}\n</TEXTO_BRUTO>\n\nReescreve o texto bruto acima num e-mail formal elegante, sem placeholders '[Nome]' nem frases robóticas, dividindo por parágrafos e quebras de linha:",
+                    text.trim()
+                ),
+                "organize_and_correct" => format!(
+                    "<TEXTO_BRUTO>\n{}\n</TEXTO_BRUTO>\n\nRevê, corrige e organiza o texto bruto acima, dividindo-o em parágrafos espaçados por linhas em branco sem placeholders:",
+                    text.trim()
+                ),
+                "short" => format!(
+                    "<TEXTO_BRUTO>\n{}\n</TEXTO_BRUTO>\n\nCondensa o texto acima mantendo parágrafos limpos e estruturados com quebras de linha:",
+                    text.trim()
+                ),
+                "translate" => format!(
+                    "Translate the following text into {target_lang_en} ({target_lang_pt}):\n\n{}\n\nTranslation in {target_lang_en}:",
+                    text.trim()
+                ),
+                _ => format!(
+                    "<TEXTO_BRUTO>\n{}\n</TEXTO_BRUTO>\n\nAplica a seguinte instrução com quebras de linha estruturadas de e-mail:\n{}",
+                    text.trim(),
+                    inst
+                ),
+            };
+            (sys, usr)
         };
 
         let prompt = format!(
@@ -877,11 +1016,15 @@ REGRAS:\n\
             recipient_display_name.as_deref(),
         );
 
-        // 2. Normaliza para português europeu autêntico, remove clichês proibidos e aberturas alucinadas de resposta
-        let pt_text = crate::prompt_guard::enforce_european_portuguese_rules(&cleaned_text);
+        // 2. Normaliza para português europeu autêntico apenas quando o texto é em português
+        let final_body = if effective_lang == "pt" {
+            crate::prompt_guard::enforce_european_portuguese_rules(&cleaned_text)
+        } else {
+            cleaned_text
+        };
 
         // 3. Aplica a formatação inteligente de quebras de linha (duplo enter)
-        completed.full_text = crate::prompt_guard::format_email_newlines(&pt_text);
+        completed.full_text = crate::prompt_guard::format_email_newlines(&final_body);
         Ok(completed)
     }
 
@@ -999,12 +1142,7 @@ REGRAS:\n\
                         engine_source: engine_label.clone(),
                     });
 
-                    let normalized = enforce_european_portuguese_rules(accumulated.trim());
-                    let final_text = if normalized.trim().is_empty() {
-                        accumulated.trim().to_string()
-                    } else {
-                        normalized
-                    };
+                    let final_text = accumulated.trim().to_string();
 
                     return Ok(InferenceCompleted {
                         request_id: request_id.to_string(),
@@ -1150,12 +1288,7 @@ REGRAS:\n\
             engine_source: engine_label.clone(),
         });
 
-        let normalized = enforce_european_portuguese_rules(accumulated.trim());
-        let final_text = if normalized.trim().is_empty() {
-            accumulated.trim().to_string()
-        } else {
-            normalized
-        };
+        let final_text = accumulated.trim().to_string();
 
         Ok(InferenceCompleted {
             request_id: request_id.to_string(),

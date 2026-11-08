@@ -1,74 +1,74 @@
-# Guia de Contribuição — Kwrl
+# Contributing to Kwrl Mail
 
-Obrigado pelo teu interesse em contribuir para o **Kwrl**!
+Thank you for your interest in contributing to **Kwrl Mail**!
 
-O Kwrl é um cliente de e-mail desktop nativo desenhado segundo princípios de privacidade inegociável, design editorial calmo, soberania de dados e inferência local de inteligência artificial via `llama.cpp`.
-
----
-
-## 🏛️ Filosofia e Princípios do Projeto
-
-1. **Zero Telemetria & Privacidade Inegociável:** O código nunca recolhe métricas, nunca envia dados para servidores terceiros e não utiliza serviços analíticos na cloud.
-2. **Modelo BYOK (*Bring Your Own Keys*):** Sem intermediários de autenticação. Os utilizadores trazem as suas credenciais gratuitas da Google Cloud, eliminando riscos de quotas partilhadas ou suspensão de chaves.
-3. **IA 100% Local (Offline-first):** Todos os modelos correm localmente em processos isolados (`llama.cpp`) com quantizações GGUF seguras e sanitização anti-injeção de prompt.
-4. **Português Europeu (PT-PT) Editorial:** O tom da interface e dos modelos deve manter o rigor gramatical, concisão e naturalidade de Portugal, sem recurso a clichês burocráticos ou variantes linguísticas incorretas.
+Kwrl Mail is a native desktop email client built on uncompromising privacy, calm editorial design, user data sovereignty, and 100% local AI inference via `llama.cpp`.
 
 ---
 
-## 🛠️ Configuração do Ambiente de Desenvolvimento
+## 🏛️ Core Project Principles
 
-### Pré-requisitos
-- **Node.js** (versão 20 ou superior) e **npm**
-- **Rust Toolchain** (1.85 ou superior): `rustup update`
-- **CMake** e compilador C++ (**Clang** no macOS, **GCC** no Linux, **MSVC** no Windows)
+1. **Zero Telemetry & Absolute Privacy:** Kwrl never collects metrics, never phones home to third-party servers, and never uses cloud analytics.
+2. **BYOK (*Bring Your Own Keys*):** No authentication middlemen. Users connect directly to Google using their own free Google Cloud Desktop credentials, eliminating shared rate limits and third-party token access.
+3. **100% Local AI (Offline-First):** All language models run locally in an isolated sidecar process (`kwrl-llm-worker`) using verified `.gguf` files and strict prompt-injection defenses (`prompt_guard.rs`).
+4. **Multilingual & Calm Design:** The UI defaults to English (`en`) and supports Portuguese (`pt`), French (`fr`), and Spanish (`es`). Every new UI string must be added to all 4 locale dictionaries in `src/i18n/translations/`.
 
-### Instalação e Execução
+---
+
+## 🛠️ Development Environment Setup
+
+### Prerequisites
+- **Node.js** (v20 or newer) and **npm**
+- **Rust Toolchain** (1.90 or newer): `rustup update stable`
+- **CMake** and a C++ compiler (**Clang** on macOS, **GCC/Clang** on Linux, **MSVC** on Windows)
+
+### Running Locally
 ```bash
-# 1. Clonar o repositório
-git clone https://github.com/AfonsoBitoque/yoot-mail.git
-cd yoot-mail
+# 1. Clone the repository
+git clone https://github.com/AfonsoBitoque/kwrl-mail.git
+cd kwrl-mail
 
-# 2. Instalar dependências de frontend
+# 2. Install frontend dependencies
 npm install
 
-# 3. Executar em modo de desenvolvimento desktop (Tauri + Vite)
+# 3. Run in native desktop development mode (Tauri + Vite)
 npm run tauri:dev
 ```
 
 ---
 
-## 🧪 Verificação e Testes
+## 🧪 Verification & Testing
 
-Antes de submeteres um Pull Request, assegura-te de que todos os testes e verificações passam com sucesso:
+Before opening a Pull Request, ensure all checks and tests pass:
 
 ```bash
-# 1. Verificação estática de tipos TypeScript
+# 1. Static TypeScript type checking
 npm run typecheck
 
-# 2. Suite de testes unitários de segurança, OAuth e SQLite em Rust
+# 2. Rust unit test suite (OAuth PKCE, SQLite WAL, Prompt Guard, Sync)
 npm run test:rust
 
-# 3. Compilação do frontend
+# 3. Production frontend build
 npm run build
 ```
 
 ---
 
-## 📬 Submissão de Pull Requests
+## 📬 Submitting Pull Requests
 
-1. Cria um ramo (*branch*) temático a partir de `main`:
+1. Create a feature or fix branch from `main`:
    ```bash
-   git checkout -b feature/minha-melhoria
+   git checkout -b feat/your-feature-name
    ```
-2. Mantém os commits limpos e descritivos:
+2. Keep commits focused and descriptive:
    ```bash
-   git commit -m "feat(oauth): adiciona suporte para validação de porta efémera"
+   git commit -m "feat(sync): improve backoff jitter on 429 responses"
    ```
-3. Garante que não adicionas ficheiros sensíveis (`.env`, `client_secret*.json`, bases de dados locais `.sqlite3` ou modelos `.gguf`). O `.gitignore` já se encontra configurado para proteger estes ficheiros.
-4. Submete o Pull Request descrevendo a motivação da alteração, o que foi testado e como reproduzir o comportamento.
+3. Never commit sensitive files (`.env`, `client_secret*.json`, `.sqlite3` databases, or `.gguf` models).
+4. Open a Pull Request describing the motivation, changes made, and how to test them.
 
 ---
 
-## ⚖️ Licença
+## ⚖️ License
 
-Ao contribuir para o Kwrl, concordas que as tuas contribuições serão licenciadas sob a licença [MIT](LICENSE).
+By contributing to Kwrl Mail, you agree that your contributions will be licensed under the [MIT License](LICENSE).

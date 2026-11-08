@@ -121,7 +121,7 @@ sudo ln -sf "${INSTALL_PREFIX}/bin/kwrl-llm-worker" "${INSTALL_PREFIX}/bin/corvo
 echo "-> A instalar atalho no ambiente de trabalho (.desktop)..."
 sudo install -d "${INSTALL_PREFIX}/share/applications"
 sudo install -m 644 packaging/linux/kwrl.desktop "${INSTALL_PREFIX}/share/applications/kwrl.desktop"
-sudo install -m 644 packaging/linux/corvo.desktop "${INSTALL_PREFIX}/share/applications/corvo.desktop"
+sudo rm -f "${INSTALL_PREFIX}/share/applications/corvo.desktop"
 
 echo "-> A instalar ícones da aplicação..."
 sudo install -d "${INSTALL_PREFIX}/share/icons/hicolor/32x32/apps"

@@ -290,14 +290,14 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
     setIsAiProcessing(true);
     setAiNotice(
       action === 'organize_and_correct'
-        ? 'A organizar texto e corrigir erros...'
+        ? t('compose.aiNoticeOrganize')
         : action === 'formal'
-        ? 'A reescrever em tom formal e profissional...'
+        ? t('compose.aiNoticeFormal')
         : action === 'short'
-        ? 'A tornar o texto mais conciso...'
+        ? t('compose.aiNoticeShort')
         : action === 'translate'
-        ? `A traduzir para ${targetLang || 'inglês'}...`
-        : 'A aplicar instruções da IA...'
+        ? t('compose.aiNoticeTranslate')
+        : t('compose.aiNoticeCustom')
     );
 
     const firstRecipient = toChips.length > 0 ? toChips[0] : toInput.trim() || undefined;
@@ -311,13 +311,13 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
       });
       if (res.fullText && res.fullText.trim()) {
         setBody(res.fullText.trim());
-        setAiNotice('Texto revisto com sucesso!');
+        setAiNotice(t('compose.aiNoticeSuccess'));
         setTimeout(() => setAiNotice(null), 3500);
       }
     } catch (err: unknown) {
       console.error('Falha ao processar texto com IA:', err);
       const msg = err instanceof Error ? err.message : String(err);
-      setAiNotice(`Erro da IA: ${msg}`);
+      setAiNotice(t('compose.aiNoticeError', { error: msg }));
       setTimeout(() => setAiNotice(null), 4000);
     } finally {
       setIsAiProcessing(false);
@@ -1095,6 +1095,24 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                     </button>
                     <button
                       type="button"
+                      onClick={() => handleAiAction('translate', 'português')}
+                      style={{
+                        padding: '6px 8px',
+                        borderRadius: '4px',
+                        border: '1px solid var(--line)',
+                        backgroundColor: 'var(--bg)',
+                        color: 'var(--ink)',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg)')}
+                    >
+                      {t('compose.langPortuguese')}
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => handleAiAction('translate', 'espanhol')}
                       style={{
                         padding: '6px 8px',
@@ -1141,6 +1159,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                         fontSize: '11px',
                         cursor: 'pointer',
                         textAlign: 'center',
+                        gridColumn: '1 / -1',
                       }}
                       onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
                       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg)')}

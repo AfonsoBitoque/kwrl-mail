@@ -45,8 +45,9 @@ npm install
 npm run build
 
 echo ""
-echo "[3/4] A compilar o Backend nativo (com aceleração Metal)..."
-cargo build --manifest-path src-tauri/Cargo.toml --release
+echo "[3/4] A compilar o Backend nativo (com aceleração Metal e assets de produção embutidos)..."
+cargo build --manifest-path src-tauri/Cargo.toml --release --bin kwrl-llm-worker
+npx tauri build --no-bundle
 
 echo ""
 echo "[4/4] A empacotar e instalar Kwrl.app..."
@@ -65,7 +66,7 @@ cat << 'EOF' > "${BUNDLE_DIR}/Contents/Info.plist"
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
-	<string>pt-PT</string>
+	<string>en</string>
 	<key>CFBundleDisplayName</key>
 	<string>Kwrl</string>
 	<key>CFBundleExecutable</key>
