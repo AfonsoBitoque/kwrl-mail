@@ -497,31 +497,36 @@ impl GmailSyncEngine {
             return Ok(0);
         }
 
-        let chunks: Vec<&[String]> = message_ids.chunks(MAX_GMAIL_BATCH_SIZE).collect();
-        let mut futures = Vec::with_capacity(chunks.len());
-        for chunk in chunks {
-            futures.push(self.execute_metadata_batch(oauth_config, email, chunk));
+        // Lotes de 25 mensagens (~125 unidades de quota), processados sequencialmente
+        // com espaçamento de 300ms entre lotes, garantindo respeito rigoroso pelo
+        // limite de 250 unidades/s da Google Gmail API.
+        const BATCH_CHUNK_SIZE: usize = 25;
+        let mut all_dtos = Vec::with_capacity(message_ids.len());
+
+        for (idx, chunk) in message_ids.chunks(BATCH_CHUNK_SIZE).enumerate() {
+            if idx > 0 {
+                tokio::time::sleep(Duration::from_millis(300)).await;
+            }
+            let dtos = self.execute_metadata_batch(oauth_config, email, chunk).await?;
+            all_dtos.extend(dtos);
         }
 
-        let batch_results = futures_util::future::try_join_all(futures).await?;
         let today = chrono::Local::now().date_naive();
-        let mut all_records = Vec::new();
+        let mut all_records = Vec::with_capacity(all_dtos.len());
         let mut all_followups = Vec::new();
 
-        for dtos in batch_results {
-            for dto in dtos {
-                let rec = dto_to_upsert_record(email, dto, today);
-                if let Some((quote, label)) = detect_followup_commitment(&rec.snippet) {
-                    all_followups.push(crate::db::UpsertFollowupRecord {
-                        thread_id: rec.thread_id.clone(),
-                        account_email: email.to_string(),
-                        detected_quote: quote,
-                        suggested_when: label,
-                        status: "sugerido".to_string(),
-                    });
-                }
-                all_records.push(rec);
+        for dto in all_dtos {
+            let rec = dto_to_upsert_record(email, dto, today);
+            if let Some((quote, label)) = detect_followup_commitment(&rec.snippet) {
+                all_followups.push(crate::db::UpsertFollowupRecord {
+                    thread_id: rec.thread_id.clone(),
+                    account_email: email.to_string(),
+                    detected_quote: quote,
+                    suggested_when: label,
+                    status: "sugerido".to_string(),
+                });
             }
+            all_records.push(rec);
         }
 
         let total_stored = all_records.len();
@@ -601,6 +606,20 @@ impl GmailSyncEngine {
 
             if !status.is_success() {
                 let txt = resp.text().await.unwrap_or_default();
+                if status == StatusCode::FORBIDDEN
+                    && (txt.contains("rateLimitExceeded")
+                        || txt.contains("userRateLimitExceeded")
+                        || txt.contains("quotaExceeded"))
+                {
+                    if attempt == MAX_BACKOFF_RETRIES {
+                        return Err(GmailSyncError::QuotaExceededRetriesExhausted(
+                            MAX_BACKOFF_RETRIES,
+                        ));
+                    }
+                    drop(_permit);
+                    tokio::time::sleep(compute_backoff_with_jitter(attempt)).await;
+                    continue;
+                }
                 return Err(GmailSyncError::ApiError {
                     status: status.as_u16(),
                     detail: txt.chars().take(200).collect(),
@@ -618,8 +637,20 @@ impl GmailSyncEngine {
                 .await
                 .map_err(|e| GmailSyncError::Transport(e.to_string()))?;
 
-            let parsed = parse_multipart_batch_messages(&content_type, &raw_text)?;
-            return Ok(parsed);
+            match parse_multipart_batch_messages(&content_type, &raw_text) {
+                Ok(parsed) => return Ok(parsed),
+                Err(GmailSyncError::QuotaExceededRetriesExhausted(_)) => {
+                    if attempt == MAX_BACKOFF_RETRIES {
+                        return Err(GmailSyncError::QuotaExceededRetriesExhausted(
+                            MAX_BACKOFF_RETRIES,
+                        ));
+                    }
+                    drop(_permit);
+                    tokio::time::sleep(compute_backoff_with_jitter(attempt)).await;
+                    continue;
+                }
+                Err(e) => return Err(e),
+            }
         }
 
         Err(GmailSyncError::QuotaExceededRetriesExhausted(
@@ -903,7 +934,12 @@ pub fn parse_multipart_batch_messages(
             .and_then(|c| c.parse().ok())
             .unwrap_or(500);
 
-        if status_code == 429 {
+        if status_code == 429
+            || (status_code == 403
+                && (trimmed.contains("rateLimitExceeded")
+                    || trimmed.contains("userRateLimitExceeded")
+                    || trimmed.contains("quotaExceeded")))
+        {
             return Err(GmailSyncError::QuotaExceededRetriesExhausted(1));
         }
         if !(200..300).contains(&status_code) {

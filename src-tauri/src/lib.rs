@@ -2382,6 +2382,7 @@ pub fn run() {
                             }
                             Err(e) => {
                                 let err_str = e.to_string();
+                                eprintln!("[KWRL SYNC BACKGROUND] Erro na sincronização: {}", err_str);
                                 let is_auth = err_str.contains("OAuth")
                                     || err_str.contains("autenticação")
                                     || err_str.contains("revoked")
@@ -2395,6 +2396,10 @@ pub fn run() {
                                         "isQuotaError": is_quota,
                                     }),
                                 );
+                                if is_quota {
+                                    // Arrefecimento de 60s em caso de quota/taxa de pedidos temporariamente excedida
+                                    tokio::time::sleep(Duration::from_secs(60)).await;
+                                }
                             }
                         }
                     }

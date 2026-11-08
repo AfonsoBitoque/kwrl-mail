@@ -172,7 +172,9 @@ export const App: React.FC = () => {
         setOnboardingError(t('toast.sessionExpired'));
         triggerUndoNotice(t('toast.sessionExpired'), () => setSettingsOpen(true));
       } else if (errEvt.isQuotaError) {
-        triggerUndoNotice(t('toast.quotaExceeded'), () => {});
+        // Erro transitório de quota ou cadência em segundo plano:
+        // O motor Rust já aplica arrefecimento silencioso de 60s; não inundamos a interface com popups contínuos.
+        console.warn('Quota transitória da Gmail API em segundo plano:', errEvt.error);
       }
     }).then((fn) => {
       if (cancelled) fn();
@@ -1319,6 +1321,14 @@ export const App: React.FC = () => {
             await syncGmailNow(null);
             await refreshBootstrap();
             await refreshThreadList();
+          } catch (err: unknown) {
+            console.error('Falha ao sincronizar manualmente:', err);
+            const errStr = err instanceof Error ? err.message : String(err);
+            if (errStr.includes('Quota') || errStr.includes('429')) {
+              triggerUndoNotice(t('toast.quotaExceeded'), () => {});
+            } else {
+              triggerUndoNotice(t('toast.connectionError'), () => {});
+            }
           } finally {
             setIsSyncing(false);
           }
