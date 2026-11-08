@@ -1,8 +1,8 @@
-# Guia de Contribuição — Corvo
+# Guia de Contribuição — Kwrl
 
-Obrigado pelo teu interesse em contribuir para o **Corvo**!
+Obrigado pelo teu interesse em contribuir para o **Kwrl**!
 
-O Corvo é um cliente de e-mail desktop nativo desenhado segundo princípios de privacidade inegociável, design editorial calmo, soberania de dados e inferência local de inteligência artificial via `llama.cpp`.
+O Kwrl é um cliente de e-mail desktop nativo desenhado segundo princípios de privacidade inegociável, design editorial calmo, soberania de dados e inferência local de inteligência artificial via `llama.cpp`.
 
 ---
 
@@ -71,4 +71,4 @@ npm run build
 
 ## ⚖️ Licença
 
-Ao contribuir para o Corvo, concordas que as tuas contribuições serão licenciadas sob a licença [MIT](LICENSE).
+Ao contribuir para o Kwrl, concordas que as tuas contribuições serão licenciadas sob a licença [MIT](LICENSE).

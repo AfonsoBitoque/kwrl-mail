@@ -250,7 +250,7 @@ export const IconPlus: React.FC<IconProps> = ({ size = 13, className }) => (
   </svg>
 );
 
-export const CorvoMark: React.FC<IconProps> = ({ size = 18, className }) => (
+export const KwrlMark: React.FC<IconProps> = ({ size = 18, className }) => (
   <svg width={size} height={size} viewBox="0 0 20 20" fill="none" className={className} aria-hidden="true">
     <path
       d="M3.5 15.5L9.5 4.2L16.8 8.2L11.2 11.4L14.4 15.5H3.5Z"
@@ -261,6 +261,8 @@ export const CorvoMark: React.FC<IconProps> = ({ size = 18, className }) => (
     <circle cx="11.4" cy="7.8" r="0.9" fill="currentColor" />
   </svg>
 );
+
+export const CorvoMark = KwrlMark;
 
 export const IconEdit: React.FC<IconProps> = ({ size = 16, className }) => (
   <svg

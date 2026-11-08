@@ -15,7 +15,8 @@ use std::sync::{Arc, RwLock};
 use thiserror::Error;
 use zeroize::Zeroizing;
 
-const KEYRING_SERVICE: &str = "pt.corvo.mail.oauth.refresh";
+const KEYRING_SERVICE: &str = "app.kwrl.mail.oauth.refresh";
+const LEGACY_KEYRING_SERVICE: &str = "pt.corvo.mail.oauth.refresh";
 /// Margem de segurança (segundos) antes da expiração real para renovar preventivamente
 const EXPIRY_SAFETY_SKEW_SECS: i64 = 60;
 
@@ -60,6 +61,16 @@ impl RefreshTokenVault for OsKeychainVault {
         match entry.get_password() {
             Ok(secret) if !secret.trim().is_empty() => Ok(Zeroizing::new(secret)),
             Ok(_) | Err(keyring::Error::NoEntry) => {
+                // Fallback para serviço anterior do Corvo caso o utilizador já estivesse autenticado
+                if let Ok(legacy_entry) = keyring::Entry::new(LEGACY_KEYRING_SERVICE, normalized.as_ref()) {
+                    if let Ok(legacy_secret) = legacy_entry.get_password() {
+                        if !legacy_secret.trim().is_empty() {
+                            // Migra automaticamente para o novo identificador de serviço
+                            let _ = entry.set_password(&legacy_secret);
+                            return Ok(Zeroizing::new(legacy_secret));
+                        }
+                    }
+                }
                 Err(SecureStoreError::RefreshTokenNotFound(normalized.into_owned()))
             }
             Err(other) => Err(SecureStoreError::KeychainFailure(other.to_string())),
@@ -68,12 +79,13 @@ impl RefreshTokenVault for OsKeychainVault {
 
     fn delete_refresh_token(&self, email: &str) -> Result<(), SecureStoreError> {
         let normalized = normalize_account_key(email)?;
-        let entry = keyring::Entry::new(KEYRING_SERVICE, normalized.as_ref())
-            .map_err(|e| SecureStoreError::KeychainFailure(e.to_string()))?;
-        match entry.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(other) => Err(SecureStoreError::KeychainFailure(other.to_string())),
+        if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, normalized.as_ref()) {
+            let _ = entry.delete_credential();
         }
+        if let Ok(legacy_entry) = keyring::Entry::new(LEGACY_KEYRING_SERVICE, normalized.as_ref()) {
+            let _ = legacy_entry.delete_credential();
+        }
+        Ok(())
     }
 }
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AccountView, CustomMailbox } from '../types/corvo';
+import { AccountView, CustomMailbox } from '../types/kwrl';
 import { IconClose, IconFolder, IconMail } from './Icons';
 
 interface CustomMailboxModalProps {

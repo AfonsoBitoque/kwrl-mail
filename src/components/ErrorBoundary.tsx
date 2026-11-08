@@ -75,7 +75,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </div>
 
             <p style={{ margin: 0, fontSize: '13px', color: 'var(--mute, #888888)', lineHeight: 1.5 }}>
-              O Corvo isolou a falha visual para proteger os teus dados e o estado da aplicação.
+              O Kwrl isolou a falha visual para proteger os teus dados e o estado da aplicação.
             </p>
 
             {this.state.error && (

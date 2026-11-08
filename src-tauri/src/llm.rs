@@ -2,7 +2,7 @@
 //!
 //! Arquitetura:
 //! 1. O processo principal Tauri NUNCA carrega tensores C++ no seu espaço de memória.
-//! 2. No primeiro pedido de IA (Lazy Loading, §4.3), lança o binário irmão `corvo-llm-worker`
+//! 2. No primeiro pedido de IA (Lazy Loading, §4.3), lança o binário irmão `kwrl-llm-worker`
 //!    com `env_clear()`, mantendo-o ativo em memória e descarregando-o automaticamente após
 //!    10 minutos de inatividade (`IDLE_TIMEOUT_SECS = 600`).
 //! 3. Antes de qualquer envio ao sidecar, executa `prompt_guard::inspect_untrusted_email` (§2.3).
@@ -301,7 +301,7 @@ impl LlmSupervisor {
             .connect_timeout(Duration::from_secs(30))
             .timeout(Duration::from_secs(3600))
             .tcp_keepalive(Duration::from_secs(15))
-            .user_agent("CorvoMail/0.2.0 (Desktop; Linux/macOS)")
+            .user_agent("KwrlMail/0.2.0 (Desktop; Linux/macOS)")
             .build()
             .unwrap_or_else(|_| http_client.clone());
 
@@ -598,7 +598,7 @@ impl LlmSupervisor {
 
         let cfg = self.config.lock().await.clone();
 
-        // 2. Caminho Principal: Motor oficial Corvo em processo sidecar isolado (§2.1 & §3.3)
+        // 2. Caminho Principal: Motor oficial Kwrl em processo sidecar isolado (§2.1 & §3.3)
         if let Some(ref model_path) = cfg.model_path {
             return self
                 .stream_via_isolated_sidecar(
@@ -680,7 +680,7 @@ impl LlmSupervisor {
         let inst = custom_instruction.unwrap_or("Melhora o texto com clareza.");
         let system_prompt = match action {
             "formal" => format!("\
-És o assistente de redação e revisão formal do Corvo, especialista em correspondência em português europeu (Portugal).\n\
+És o assistente de redação e revisão formal do Kwrl, especialista em correspondência em português europeu (Portugal).\n\
 O teu papel é transformar o texto do utilizador num e-mail formal, natural, polido e perfeitamente estruturado.\n\
 \n\
 CONTEXTO DE ESCRITA (NOVA MENSAGEM DO ZERO):\n\
@@ -718,7 +718,7 @@ REGRAS DE CONTEÚDO E LINGUAGEM (PROIBIÇÕES ESTRITAS):\n\
             ),
 
             "organize_and_correct" => format!("\
-És o assistente de redação e revisão do Corvo, especialista em português europeu (Portugal).\n\
+És o assistente de redação e revisão do Kwrl, especialista em português europeu (Portugal).\n\
 O teu papel é rever, organizar e estruturar o texto fornecido pelo utilizador.\n\
 \n\
 CONTEXTO DE ESCRITA (NOVA MENSAGEM DO ZERO):\n\
@@ -746,7 +746,7 @@ REGRAS DE REVISÃO E ESTILO:\n\
             ),
 
             "short" => "\
-És o assistente de síntese do Corvo. O teu papel é condensar o texto fornecido tornando-o conciso, direto e objetivo em português europeu (pt-PT).\n\
+És o assistente de síntese do Kwrl. O teu papel é condensar o texto fornecido tornando-o conciso, direto e objetivo em português europeu (pt-PT).\n\
 \n\
 ESTRUTURAÇÃO:\n\
 - Divide o texto com quebras de linha limpas e parágrafos espaçados por duplo enter. Não deixes o texto corrido numa linha só.\n\
@@ -754,7 +754,7 @@ ESTRUTURAÇÃO:\n\
 - SEM META-TEXTO: Devolve APENAS o texto condensado formatado.".to_string(),
 
             "translate" => format!("\
-És o tradutor de correspondência do Corvo.\n\
+És o tradutor de correspondência do Kwrl.\n\
 O teu papel é traduzir o texto fornecido pelo utilizador fielmente para {}.\n\
 \n\
 ESTRUTURAÇÃO:\n\
@@ -764,7 +764,7 @@ ESTRUTURAÇÃO:\n\
 - SEM META-TEXTO: Devolve APENAS o texto traduzido final.", lang),
 
             _ => format!("\
-És o assistente de redação do Corvo.\n\
+És o assistente de redação do Kwrl.\n\
 O teu papel é cumprir a seguinte instrução ao texto do utilizador:\n\
 \"{}\"\n\
 \n\
@@ -910,9 +910,9 @@ REGRAS:\n\
             .map(|n| n.to_string_lossy().contains("finetuned"))
             .unwrap_or(false);
         let engine_label = if is_finetuned {
-            "Motor Corvo · Fine-Tune".to_string()
+            "Motor Kwrl · Fine-Tune".to_string()
         } else {
-            "Motor Corvo".to_string()
+            "Motor Kwrl".to_string()
         };
 
         #[derive(Deserialize)]
@@ -997,7 +997,7 @@ REGRAS:\n\
         *guard = None;
         self.worker_loaded.store(false, std::sync::atomic::Ordering::Release);
         Err(LlmError::WorkerFailure(
-            "O processo sidecar corvo-llm-worker terminou abruptamente.".into(),
+            "O processo sidecar kwrl-llm-worker terminou abruptamente.".into(),
         ))
     }
 
@@ -1142,50 +1142,58 @@ pub fn optimal_cpu_threads() -> usize {
 }
 
 fn resolve_worker_binary_path() -> Result<PathBuf, LlmError> {
-    let bin_name = if cfg!(windows) {
-        "corvo-llm-worker.exe"
+    let candidate_names = if cfg!(windows) {
+        ["kwrl-llm-worker.exe", "corvo-llm-worker.exe"]
     } else {
-        "corvo-llm-worker"
+        ["kwrl-llm-worker", "corvo-llm-worker"]
     };
 
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            let candidate = dir.join(bin_name);
-            if candidate.exists() {
-                return Ok(candidate);
+    for bin_name in candidate_names {
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(dir) = exe.parent() {
+                let candidate = dir.join(bin_name);
+                if candidate.exists() {
+                    return Ok(candidate);
+                }
+                if let Some(parent_dir) = dir.parent() {
+                    let parent_candidate = parent_dir.join(bin_name);
+                    if parent_candidate.exists() {
+                        return Ok(parent_candidate);
+                    }
+                }
             }
-            if let Some(parent_dir) = dir.parent() {
-                let parent_candidate = parent_dir.join(bin_name);
-                if parent_candidate.exists() {
-                    return Ok(parent_candidate);
+        }
+
+        // Procura em diretórios padrão do sistema operacional (Linux / Unix)
+        #[cfg(unix)]
+        for standard_dir in [
+            "/usr/local/bin",
+            "/usr/bin",
+            "/opt/kwrl",
+            "/opt/kwrl/bin",
+            "/opt/corvo",
+            "/opt/corvo/bin",
+        ] {
+            let p = Path::new(standard_dir).join(bin_name);
+            if p.exists() {
+                return Ok(p);
+            }
+        }
+
+        // Procura no PATH do sistema
+        if let Ok(path_var) = std::env::var("PATH") {
+            for segment in std::env::split_paths(&path_var) {
+                let candidate = segment.join(bin_name);
+                if candidate.exists() {
+                    return Ok(candidate);
                 }
             }
         }
     }
 
-    // Procura em diretórios padrão do sistema operacional (Linux / Unix)
-    #[cfg(unix)]
-    for standard_dir in ["/usr/local/bin", "/usr/bin", "/opt/corvo", "/opt/corvo/bin"] {
-        let p = Path::new(standard_dir).join(bin_name);
-        if p.exists() {
-            return Ok(p);
-        }
-    }
-
-    // Procura no PATH do sistema
-    if let Ok(path_var) = std::env::var("PATH") {
-        for segment in std::env::split_paths(&path_var) {
-            let candidate = segment.join(bin_name);
-            if candidate.exists() {
-                return Ok(candidate);
-            }
-        }
-    }
-
-    Err(LlmError::WorkerFailure(format!(
-        "Binário isolado '{}' não encontrado junto ao executável principal nem no PATH do sistema.",
-        bin_name
-    )))
+    Err(LlmError::WorkerFailure(
+        "Binário isolado 'kwrl-llm-worker' não encontrado junto ao executável principal nem no PATH do sistema.".into(),
+    ))
 }
 
 async fn spawn_isolated_worker() -> Result<RunningWorker, LlmError> {

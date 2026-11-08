@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getKnownContacts, rewriteTextWithAi } from '../services/tauriBridge';
-import { AccountView, EmailAttachment, KnownContact } from '../types/corvo';
+import { AccountView, EmailAttachment, KnownContact } from '../types/kwrl';
 import { IconClose, IconPaperclip, IconSent, IconSparkles } from './Icons';
 
 export interface ComposeModalProps {
@@ -275,7 +275,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
     }
   };
 
-  // Executa uma transformação inteligente com o Motor Corvo local
+  // Executa uma transformação inteligente com o Motor Kwrl local
   const handleAiAction = async (
     action: 'organize_and_correct' | 'formal' | 'short' | 'translate' | 'custom',
     targetLang?: string,

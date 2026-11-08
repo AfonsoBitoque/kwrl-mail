@@ -201,7 +201,7 @@ pub async fn await_loopback_authorization_code(
                 "404 Not Found",
                 false,
                 "Recurso não encontrado",
-                "O endereço solicitado não é reconhecido pelo Corvo.",
+                "O endereço solicitado não é reconhecido pelo Kwrl.",
             )
             .await;
             continue;
@@ -229,7 +229,7 @@ pub async fn await_loopback_authorization_code(
                 "400 Bad Request",
                 false,
                 "Autorização cancelada",
-                "A autorização no Google foi cancelada. Podes fechar este separador e voltar ao Corvo.",
+                "A autorização no Google foi cancelada. Podes fechar este separador e voltar ao Kwrl.",
             )
             .await;
             drop(listener);
@@ -261,7 +261,7 @@ pub async fn await_loopback_authorization_code(
                     "200 OK",
                     true,
                     "Sessão iniciada com sucesso",
-                    "A tua conta Google foi autenticada no Corvo. Podes fechar este separador e regressar à aplicação.",
+                    "A tua conta Google foi autenticada no Kwrl. Podes fechar este separador e regressar à aplicação.",
                 )
                 .await;
                 // Fecha imediatamente o socket loopback efémero (§1.1.4)
@@ -274,7 +274,7 @@ pub async fn await_loopback_authorization_code(
                     "400 Bad Request",
                     false,
                     "Código de autorização em falta",
-                    "A Google não devolveu um código de autorização válido. Tenta novamente no Corvo.",
+                    "A Google não devolveu um código de autorização válido. Tenta novamente no Kwrl.",
                 )
                 .await;
                 drop(listener);
@@ -313,7 +313,7 @@ async fn write_http_response(
         </div>"#
     } else {
         r#"<div class="pill pill-error">
-          <span>Verifica os dados e tenta novamente no Corvo</span>
+          <span>Verifica os dados e tenta novamente no Kwrl</span>
         </div>"#
     };
 
@@ -323,7 +323,7 @@ async fn write_http_response(
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Corvo · Início de Sessão</title>
+  <title>Kwrl · Início de Sessão</title>
   <style>
     :root {{
       --bg: #fcfbfc;
@@ -429,7 +429,7 @@ async fn write_http_response(
     <div class="icon-box">
       {}
     </div>
-    <div class="kicker">Corvo · Correio Local</div>
+    <div class="kicker">Kwrl · Correio Local</div>
     <h1>{}</h1>
     <p>{}</p>
     {}

@@ -1,5 +1,5 @@
 # ==============================================================================
-# Script de Instalação Automática do Corvo para Windows 10 / 11 (PowerShell)
+# Script de Instalação Automática do Kwrl para Windows 10 / 11 (PowerShell)
 # ==============================================================================
 
 [CmdletBinding()]
@@ -10,7 +10,7 @@ param (
 $ErrorActionPreference = "Stop"
 
 Write-Host "==========================================" -ForegroundColor Cyan
-Write-Host "  Instalador Automático do Corvo (Windows)" -ForegroundColor Cyan
+Write-Host "  Instalador Automático do Kwrl (Windows)" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -79,38 +79,38 @@ if ($cargoFeatures) {
 
 # [4/4] Instalação no Sistema
 Write-Host ""
-Write-Host "[4/4] A instalar o Corvo..." -ForegroundColor Yellow
+Write-Host "[4/4] A instalar o Kwrl..." -ForegroundColor Yellow
 
-$InstallDir = "$env:LOCALAPPDATA\Programs\Corvo"
+$InstallDir = "$env:LOCALAPPDATA\Programs\Kwrl"
 if (-not (Test-Path $InstallDir)) {
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 }
 
-$desktopExe = "$ProjectDir\src-tauri\target\release\corvo-desktop.exe"
-$workerExe = "$ProjectDir\src-tauri\target\release\corvo-llm-worker.exe"
+$desktopExe = "$ProjectDir\src-tauri\target\release\kwrl.exe"
+$workerExe = "$ProjectDir\src-tauri\target\release\kwrl-llm-worker.exe"
 
-Copy-Item $desktopExe -Destination "$InstallDir\corvo-desktop.exe" -Force
-Copy-Item $workerExe -Destination "$InstallDir\corvo-llm-worker.exe" -Force
-Copy-Item "$ProjectDir\src-tauri\icons\icon.png" -Destination "$InstallDir\corvo.png" -Force
+Copy-Item $desktopExe -Destination "$InstallDir\kwrl.exe" -Force
+Copy-Item $workerExe -Destination "$InstallDir\kwrl-llm-worker.exe" -Force
+Copy-Item "$ProjectDir\src-tauri\icons\icon.png" -Destination "$InstallDir\kwrl.png" -Force
 
 # Criar atalho no Menu Iniciar
 $startMenuDir = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs"
-$shortcutPath = "$startMenuDir\Corvo.lnk"
+$shortcutPath = "$startMenuDir\Kwrl.lnk"
 
 $WshShell = New-Object -ComObject WScript.Shell
 $Shortcut = $WshShell.CreateShortcut($shortcutPath)
-$Shortcut.TargetPath = "$InstallDir\corvo-desktop.exe"
+$Shortcut.TargetPath = "$InstallDir\kwrl.exe"
 $Shortcut.WorkingDirectory = $InstallDir
-$Shortcut.IconLocation = "$InstallDir\corvo-desktop.exe,0"
+$Shortcut.IconLocation = "$InstallDir\kwrl.exe,0"
 $Shortcut.Description = "Cliente de e-mail calmo e seguro com IA local"
 $Shortcut.Save()
 
 # Criar atalho no Desktop (Área de Trabalho)
-$desktopShortcutPath = "$([Environment]::GetFolderPath('Desktop'))\Corvo.lnk"
+$desktopShortcutPath = "$([Environment]::GetFolderPath('Desktop'))\Kwrl.lnk"
 $DesktopShortcut = $WshShell.CreateShortcut($desktopShortcutPath)
-$DesktopShortcut.TargetPath = "$InstallDir\corvo-desktop.exe"
+$DesktopShortcut.TargetPath = "$InstallDir\kwrl.exe"
 $DesktopShortcut.WorkingDirectory = $InstallDir
-$DesktopShortcut.IconLocation = "$InstallDir\corvo-desktop.exe,0"
+$DesktopShortcut.IconLocation = "$InstallDir\kwrl.exe,0"
 $DesktopShortcut.Description = "Cliente de e-mail calmo e seguro com IA local"
 $DesktopShortcut.Save()
 
@@ -123,7 +123,7 @@ Write-Host "Instalado em: $InstallDir"
 Write-Host "Atalhos criados no Menu Iniciar e no Ambiente de Trabalho."
 Write-Host ""
 
-$launch = Read-Host "Deseja iniciar o Corvo agora? (S/n)"
+$launch = Read-Host "Deseja iniciar o Kwrl agora? (S/n)"
 if ($launch -ne "n" -and $launch -ne "N") {
-    Start-Process "$InstallDir\corvo-desktop.exe"
+    Start-Process "$InstallDir\kwrl.exe"
 }

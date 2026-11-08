@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { openExternalUrl, resolveFriendlyModelName } from '../services/tauriBridge';
-import { AccountView, DiscoveredModel, LocalModelStatus } from '../types/corvo';
+import { AccountView, DiscoveredModel, LocalModelStatus } from '../types/kwrl';
 import { IconCheck, IconClose, IconPlus } from './Icons';
 
 interface PrivacySettingsDrawerProps {
@@ -193,7 +193,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                 lineHeight: 1.45,
               }}
             >
-              O Corvo inclui o seu próprio motor privado de escrita em português. Tudo
+              O Kwrl inclui o seu próprio motor privado de escrita em português. Tudo
               corre localmente no teu computador, sem enviar e-mails para terceiros.
             </p>
           </div>
@@ -228,7 +228,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
           </div>
         )}
 
-        {/* Secção 1: Motor Único Oficial do Corvo (Zero configuração manual) */}
+        {/* Secção 1: Motor Único Oficial do Kwrl (Zero configuração manual) */}
         <section style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <span className="type-kicker">1. Motor de IA Integrado</span>
 
@@ -517,7 +517,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
               <span>Microsoft 365, Outlook e IMAP</span>
             </div>
             <div>
-              O Corvo opera atualmente em exclusivo com contas <strong>Google / Gmail</strong> através do fluxo oficial <strong>OAuth 2.0 PKCE S256</strong> (RFC 8252) com permissões mínimas e sincronização local direta.
+              O Kwrl opera atualmente em exclusivo com contas <strong>Google / Gmail</strong> através do fluxo oficial <strong>OAuth 2.0 PKCE S256</strong> (RFC 8252) com permissões mínimas e sincronização local direta.
             </div>
             <div style={{ fontSize: '11px', color: 'var(--faint)' }}>
               O suporte nativo a <strong>Microsoft 365 / Outlook</strong> (via Microsoft Graph API) e servidores <strong>IMAP</strong> está previsto para uma versão futura.
@@ -546,7 +546,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
           </div>
 
           <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
-            O Corvo adota o modelo <em>Bring Your Own Keys</em> (BYOK): cada utilizador utiliza a sua própria credencial gratuita do Google Cloud, eliminando intermediários, quotas partilhadas e custos de auditoria comercial.
+            O Kwrl adota o modelo <em>Bring Your Own Keys</em> (BYOK): cada utilizador utiliza a sua própria credencial gratuita do Google Cloud, eliminando intermediários, quotas partilhadas e custos de auditoria comercial.
           </p>
 
           <div

@@ -1,5 +1,5 @@
 import React, { RefObject, useMemo } from 'react';
-import { ThreadListItem } from '../types/corvo';
+import { ThreadListItem } from '../types/kwrl';
 import { IconFlag, IconSearch } from './Icons';
 
 export type TintaFilterMode = 'all' | 'unread' | 'starred' | 'attachments';

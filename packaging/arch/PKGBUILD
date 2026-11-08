@@ -1,11 +1,14 @@
-# Maintainer: Equipa Corvo <dev@corvo.mail>
-pkgname=corvo-desktop
+# Maintainer: Afonso Bitoque <dev@kwrl.app>
+pkgname=kwrl-desktop
 pkgver=0.2.0
 pkgrel=1
 pkgdesc="Cliente de e-mail calmo e seguro com IA local llama.cpp e Gmail OAuth2"
 arch=('x86_64' 'aarch64')
 url="https://github.com/AfonsoBitoque/yoot-mail"
 license=('MIT')
+provides=('kwrl' 'corvo-desktop')
+conflicts=('corvo-desktop')
+replaces=('corvo-desktop')
 depends=(
     'webkit2gtk-4.1'
     'gtk3'
@@ -25,6 +28,7 @@ makedepends=(
     'npm'
     'cmake'
     'gcc'
+    'clang'
 )
 source=()
 
@@ -41,7 +45,8 @@ build() {
     # 2. Compila os binários Rust em release
     # Nota: para ativar aceleração CUDA passe CARGO_FEATURES="--features cuda"
     # ou para Vulkan passe CARGO_FEATURES="--features vulkan"
-    cargo build --manifest-path src-tauri/Cargo.toml --release ${CARGO_FEATURES:-}
+    npx tauri build --no-bundle ${CARGO_FEATURES:-}
+    cargo build --manifest-path src-tauri/Cargo.toml --release --bin kwrl-llm-worker ${CARGO_FEATURES:-}
 }
 
 package() {
@@ -51,14 +56,22 @@ package() {
     fi
 
     # Binários principais (aplicação desktop e processo sidecar isolado llama.cpp)
-    install -Dm755 "${ROOT_DIR}/src-tauri/target/release/corvo-desktop" "${pkgdir}/usr/bin/corvo-desktop"
-    install -Dm755 "${ROOT_DIR}/src-tauri/target/release/corvo-llm-worker" "${pkgdir}/usr/bin/corvo-llm-worker"
+    install -Dm755 "${ROOT_DIR}/src-tauri/target/release/kwrl" "${pkgdir}/usr/bin/kwrl"
+    install -Dm755 "${ROOT_DIR}/src-tauri/target/release/kwrl-llm-worker" "${pkgdir}/usr/bin/kwrl-llm-worker"
+
+    # Symlinks para manter compatibilidade retroativa
+    ln -sf /usr/bin/kwrl "${pkgdir}/usr/bin/corvo-desktop"
+    ln -sf /usr/bin/kwrl-llm-worker "${pkgdir}/usr/bin/corvo-llm-worker"
 
     # Entrada no lançador de aplicações (.desktop)
+    install -Dm644 "${ROOT_DIR}/packaging/linux/kwrl.desktop" "${pkgdir}/usr/share/applications/kwrl.desktop"
     install -Dm644 "${ROOT_DIR}/packaging/linux/corvo.desktop" "${pkgdir}/usr/share/applications/corvo.desktop"
 
     # Ícones da aplicação
-    install -Dm644 "${ROOT_DIR}/src-tauri/icons/32x32.png" "${pkgdir}/usr/share/icons/hicolor/32x32/apps/corvo.png"
-    install -Dm644 "${ROOT_DIR}/src-tauri/icons/128x128.png" "${pkgdir}/usr/share/icons/hicolor/128x128/apps/corvo.png"
-    install -Dm644 "${ROOT_DIR}/src-tauri/icons/icon.png" "${pkgdir}/usr/share/pixmaps/corvo.png"
+    install -Dm644 "${ROOT_DIR}/src-tauri/icons/32x32.png" "${pkgdir}/usr/share/icons/hicolor/32x32/apps/kwrl.png"
+    install -Dm644 "${ROOT_DIR}/src-tauri/icons/128x128.png" "${pkgdir}/usr/share/icons/hicolor/128x128/apps/kwrl.png"
+    install -Dm644 "${ROOT_DIR}/src-tauri/icons/icon.png" "${pkgdir}/usr/share/pixmaps/kwrl.png"
+    ln -sf kwrl.png "${pkgdir}/usr/share/icons/hicolor/32x32/apps/corvo.png"
+    ln -sf kwrl.png "${pkgdir}/usr/share/icons/hicolor/128x128/apps/corvo.png"
+    ln -sf kwrl.png "${pkgdir}/usr/share/pixmaps/corvo.png"
 }

@@ -48,7 +48,7 @@ import {
   LocalModelStatus,
   ThreadDetail,
   ThreadListItem,
-} from './types/corvo';
+} from './types/kwrl';
 
 const DEFAULT_MODEL_STATUS: LocalModelStatus = {
   configured: false,
@@ -967,7 +967,7 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [mailboxThreads, currentThreadIndex, selectedThreadId, composeOpen]);
 
-  // Geração de Resumo com o Motor Corvo local
+  // Geração de Resumo com o Motor Kwrl local
   const handleGenerateSummary = async () => {
     if (!selectedThreadId || isSummarizing) return;
     const tid = selectedThreadId;

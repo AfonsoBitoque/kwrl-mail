@@ -46,10 +46,15 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
+/* ==========================================================================
+   KWRL — ESTRUTURA ESPACIAL & BARELY-THERE UI (src/styles/layout.css)
+   ========================================================================== */
+
 /* --------------------------------------------------------------------------
    Shell Principal Desktop — Grelha Assimétrica com Modo Foco
    -------------------------------------------------------------------------- */
 
+.kwrl-shell,
 .corvo-shell {
   display: grid;
   grid-template-columns: var(--rail-width) var(--list-width) minmax(0, 1fr) var(--ai-margin-width);
@@ -61,15 +66,18 @@ select:focus-visible {
 }
 
 /* Quando o painel lateral de IA está recolhido */
+.kwrl-shell--ai-closed,
 .corvo-shell--ai-closed {
   grid-template-columns: var(--rail-width) var(--list-width) minmax(0, 1fr) 0px;
 }
 
 /* Modo Foco (§2.3): recolhe navegação e comprime distrações — ~80%+ para leitura */
+.kwrl-shell--focus,
 .corvo-shell--focus {
   grid-template-columns: 0px 288px minmax(0, 1fr) var(--ai-margin-width);
 }
 
+.kwrl-shell--focus.kwrl-shell--ai-closed,
 .corvo-shell--focus.corvo-shell--ai-closed {
   grid-template-columns: 0px 288px minmax(0, 1fr) 0px;
 }
@@ -78,6 +86,7 @@ select:focus-visible {
    Zona 1: Coluna de Contas & Views Modulares (Barely-There Rail)
    -------------------------------------------------------------------------- */
 
+.kwrl-rail,
 .corvo-rail {
   background-color: var(--bg-rail);
   border-right: 1px solid var(--hairline);
@@ -89,6 +98,7 @@ select:focus-visible {
   transition: opacity var(--duration-micro) var(--ease-out-calm);
 }
 
+.kwrl-shell--focus .kwrl-rail,
 .corvo-shell--focus .corvo-rail {
   opacity: 0;
   pointer-events: none;
@@ -251,6 +261,7 @@ select:focus-visible {
    Zona 3: Painel de Leitura Editorial & Compositor CDLR
    -------------------------------------------------------------------------- */
 
+.kwrl-reading-pane,
 .corvo-reading-pane {
   background-color: var(--bg-canvas);
   display: flex;
@@ -695,6 +706,7 @@ select:focus-visible {
 }
 
 /* Painel Lateral Discreto de IA (Marginalia) quando aberto */
+.kwrl-ai-margin,
 .corvo-ai-margin {
   background-color: var(--side);
   border-left: 1px solid var(--line);
@@ -824,6 +836,7 @@ select:focus-visible {
 
 /* Responsividade Desktop Compacta (portáteis 13" / janelas divididas) */
 @media (max-width: 1180px) {
+  .kwrl-shell,
   .corvo-shell {
     --rail-width: 204px;
     --list-width: 304px;

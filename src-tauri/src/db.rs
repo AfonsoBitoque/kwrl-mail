@@ -178,7 +178,7 @@ impl LocalDatabase {
     pub fn open_in_memory() -> Result<Self, DbError> {
         static MEM_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let id = MEM_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let uri = format!("file:corvo_mem_{}?mode=memory&cache=shared", id);
+        let uri = format!("file:kwrl_mem_{}?mode=memory&cache=shared", id);
         let write_conn = Connection::open_with_flags(
             &uri,
             rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE

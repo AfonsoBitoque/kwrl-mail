@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { AccountView, CustomMailbox } from '../types/corvo';
+import { AccountView, CustomMailbox } from '../types/kwrl';
 import {
   IconArchive,
   IconClose,
@@ -98,7 +98,7 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
 
   return (
     <aside className="tinta-sidebar" aria-label="Caixas de correio">
-      {/* Topo: Nome da App Corvo */}
+      {/* Topo: Nome da App Kwrl */}
       <div className="tinta-sidebar-header">
         <button
           type="button"
@@ -106,7 +106,7 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
           onClick={() => void onSyncNow()}
           title={isSyncing ? 'A sincronizar...' : 'Clique para sincronizar agora'}
         >
-          <span className="tinta-sidebar-brand">Corvo</span>
+          <span className="tinta-sidebar-brand">Kwrl</span>
           {isSyncing && (
             <span className="tinta-syncing-indicator" title="A sincronizar com o Gmail...">
               •

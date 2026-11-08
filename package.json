@@ -1,8 +1,8 @@
 {
-  "name": "corvo-mail",
+  "name": "kwrl-mail",
   "private": true,
   "version": "0.2.0",
-  "description": "Corvo — Cliente de e-mail desktop calmo com Gmail real, Keychain e IA local llama.cpp",
+  "description": "Kwrl — Fast, quiet, local-first email client with offline Gmail, OS Keychain and local llama.cpp AI",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,9 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml --lib",
     "tauri": "tauri",
-    "tauri:dev": "cargo build --manifest-path src-tauri/Cargo.toml --bin corvo-llm-worker && tauri dev",
-    "tauri:build": "cargo build --release --manifest-path src-tauri/Cargo.toml --bin corvo-llm-worker && tauri build",
-    "tauri:build:mac": "cargo build --release --manifest-path src-tauri/Cargo.toml --bin corvo-llm-worker && tauri build --bundles app && cp src-tauri/target/release/corvo-llm-worker src-tauri/target/release/bundle/macos/Corvo.app/Contents/MacOS/corvo-llm-worker",
+    "tauri:dev": "cargo build --manifest-path src-tauri/Cargo.toml --bin kwrl-llm-worker && tauri dev",
+    "tauri:build": "cargo build --release --manifest-path src-tauri/Cargo.toml --bin kwrl-llm-worker && tauri build",
+    "tauri:build:mac": "cargo build --release --manifest-path src-tauri/Cargo.toml --bin kwrl-llm-worker && tauri build --bundles app && cp src-tauri/target/release/kwrl-llm-worker src-tauri/target/release/bundle/macos/Kwrl.app/Contents/MacOS/kwrl-llm-worker",
     "install:arch": "bash scripts/install-arch.sh",
     "install:mac": "bash scripts/install-mac.sh"
   },

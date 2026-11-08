@@ -686,38 +686,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "corvo-desktop"
-version = "0.2.0"
-dependencies = [
- "aho-corasick",
- "base64 0.22.1",
- "bytes",
- "chrono",
- "futures-util",
- "keyring",
- "llama-cpp-2",
- "llama-cpp-sys-2",
- "memchr",
- "mimalloc",
- "num_cpus",
- "open",
- "rand 0.8.8",
- "reqwest 0.12.28",
- "rusqlite",
- "serde",
- "serde_json",
- "sha2",
- "tauri",
- "tauri-build",
- "tempfile",
- "thiserror 2.0.21",
- "tokio",
- "unicode-normalization",
- "url",
- "zeroize",
-]
-
-[[package]]
 name = "cpufeatures"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2235,6 +2203,38 @@ dependencies = [
  "security-framework 2.11.1",
  "security-framework 3.7.0",
  "windows-sys 0.60.2",
+ "zeroize",
+]
+
+[[package]]
+name = "kwrl"
+version = "0.2.0"
+dependencies = [
+ "aho-corasick",
+ "base64 0.22.1",
+ "bytes",
+ "chrono",
+ "futures-util",
+ "keyring",
+ "llama-cpp-2",
+ "llama-cpp-sys-2",
+ "memchr",
+ "mimalloc",
+ "num_cpus",
+ "open",
+ "rand 0.8.8",
+ "reqwest 0.12.28",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tauri",
+ "tauri-build",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "unicode-normalization",
+ "url",
  "zeroize",
 ]
 

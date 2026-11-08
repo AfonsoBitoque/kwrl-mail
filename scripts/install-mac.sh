@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # ==============================================================================
-# Script de Instalação Automática do Corvo para macOS (Apple Silicon & Intel)
+# Script de Instalação Automática do Kwrl para macOS (Apple Silicon & Intel)
 # ==============================================================================
 
 echo "=========================================="
-echo "  Instalador Automático do Corvo (macOS)"
+echo "  Instalador Automático do Kwrl (macOS)"
 echo "=========================================="
 
 if [ "$(uname -s)" != "Darwin" ]; then
@@ -49,14 +49,14 @@ echo "[3/4] A compilar o Backend nativo (com aceleração Metal)..."
 cargo build --manifest-path src-tauri/Cargo.toml --release
 
 echo ""
-echo "[4/4] A empacotar e instalar Corvo.app..."
+echo "[4/4] A empacotar e instalar Kwrl.app..."
 
-BUNDLE_DIR="${PROJECT_DIR}/src-tauri/target/release/bundle/macos/Corvo.app"
+BUNDLE_DIR="${PROJECT_DIR}/src-tauri/target/release/bundle/macos/Kwrl.app"
 mkdir -p "${BUNDLE_DIR}/Contents/MacOS"
 mkdir -p "${BUNDLE_DIR}/Contents/Resources"
 
-cp "${PROJECT_DIR}/src-tauri/target/release/corvo-desktop" "${BUNDLE_DIR}/Contents/MacOS/corvo-desktop"
-cp "${PROJECT_DIR}/src-tauri/target/release/corvo-llm-worker" "${BUNDLE_DIR}/Contents/MacOS/corvo-llm-worker"
+cp "${PROJECT_DIR}/src-tauri/target/release/kwrl" "${BUNDLE_DIR}/Contents/MacOS/kwrl"
+cp "${PROJECT_DIR}/src-tauri/target/release/kwrl-llm-worker" "${BUNDLE_DIR}/Contents/MacOS/kwrl-llm-worker"
 
 # Assegura existência de Info.plist
 cat << 'EOF' > "${BUNDLE_DIR}/Contents/Info.plist"
@@ -67,15 +67,15 @@ cat << 'EOF' > "${BUNDLE_DIR}/Contents/Info.plist"
 	<key>CFBundleDevelopmentRegion</key>
 	<string>pt-PT</string>
 	<key>CFBundleDisplayName</key>
-	<string>Corvo</string>
+	<string>Kwrl</string>
 	<key>CFBundleExecutable</key>
-	<string>corvo-desktop</string>
+	<string>kwrl</string>
 	<key>CFBundleIdentifier</key>
-	<string>pt.corvo.mail</string>
+	<string>app.kwrl.mail</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Corvo</string>
+	<string>Kwrl</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -85,12 +85,16 @@ cat << 'EOF' > "${BUNDLE_DIR}/Contents/Info.plist"
 	<key>LSMinimumSystemVersion</key>
 	<string>13.0</string>
 	<key>CFBundleIconFile</key>
-	<string>Corvo.icns</string>
+	<string>icon.icns</string>
 	<key>NSHighResolutionCapable</key>
 	<true/>
 </dict>
 </plist>
 EOF
+
+if [ -f "${PROJECT_DIR}/src-tauri/icons/icon.icns" ]; then
+    cp "${PROJECT_DIR}/src-tauri/icons/icon.icns" "${BUNDLE_DIR}/Contents/Resources/icon.icns"
+fi
 
 # Limpa atributos de quarentena do Gatekeeper e aplica assinatura ad-hoc
 xattr -cr "${BUNDLE_DIR}"
@@ -102,18 +106,18 @@ if [ ! -w "${DEST_DIR}" ]; then
     mkdir -p "${DEST_DIR}"
 fi
 
-echo "-> A instalar em ${DEST_DIR}/Corvo.app..."
-rm -rf "${DEST_DIR}/Corvo.app"
-cp -R "${BUNDLE_DIR}" "${DEST_DIR}/Corvo.app"
-xattr -cr "${DEST_DIR}/Corvo.app"
-codesign --force --deep --sign - "${DEST_DIR}/Corvo.app"
+echo "-> A instalar em ${DEST_DIR}/Kwrl.app..."
+rm -rf "${DEST_DIR}/Kwrl.app"
+cp -R "${BUNDLE_DIR}" "${DEST_DIR}/Kwrl.app"
+xattr -cr "${DEST_DIR}/Kwrl.app"
+codesign --force --deep --sign - "${DEST_DIR}/Kwrl.app"
 
 echo ""
 echo "================================================================="
 echo "  Instalação concluída com sucesso no macOS!"
 echo "================================================================="
 echo ""
-echo "O Corvo está instalado em: ${DEST_DIR}/Corvo.app"
+echo "O Kwrl está instalado em: ${DEST_DIR}/Kwrl.app"
 echo "A abrir a aplicação..."
-open "${DEST_DIR}/Corvo.app"
+open "${DEST_DIR}/Kwrl.app"
 echo ""

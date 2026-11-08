@@ -1,24 +1,24 @@
 [package]
-name = "corvo-desktop"
+name = "kwrl"
 version = "0.2.0"
-description = "Corvo — Cliente desktop Gmail OAuth2+PKCE com cache SQLite e inferência local isolada llama.cpp"
-authors = ["Equipa Corvo"]
+description = "Kwrl — Fast, quiet, local-first email client with offline Gmail, OS Keychain and local llama.cpp AI"
+authors = ["Afonso Bitoque and Kwrl Contributors"]
 edition = "2021"
-default-run = "corvo-desktop"
+default-run = "kwrl"
 
 [lib]
-name = "corvo_lib"
+name = "kwrl_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [[bin]]
-name = "corvo-desktop"
+name = "kwrl"
 path = "src/main.rs"
 
 # Processo sidecar isolado para inferência C++ llama.cpp (§3.3):
 # Isola completamente os tensores e buffers do modelo do Keychain, tokens OAuth em memória e pilha TLS.
 [[bin]]
-name = "corvo-llm-worker"
-path = "src/bin/corvo_llm_worker.rs"
+name = "kwrl-llm-worker"
+path = "src/bin/kwrl_llm_worker.rs"
 
 [features]
 default = []

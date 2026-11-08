@@ -34,7 +34,8 @@ use crate::oauth::{
 use crate::prompt_guard::{inspect_untrusted_email, InjectionInspection};
 use crate::secure_store::TokenManager;
 
-const OAUTH_CLIENT_KEYRING_SERVICE: &str = "pt.corvo.mail.oauth.client";
+const OAUTH_CLIENT_KEYRING_SERVICE: &str = "app.kwrl.mail.oauth.client";
+const LEGACY_OAUTH_CLIENT_KEYRING_SERVICE: &str = "pt.corvo.mail.oauth.client";
 const OAUTH_CLIENT_SECRET_KEY: &str = "google_desktop_client_secret";
 const KV_OAUTH_CLIENT_ID: &str = "oauth_client_id";
 const KV_POLL_INTERVAL_SECS: &str = "poll_interval_secs";
@@ -56,14 +57,21 @@ pub struct CustomMailboxDto {
     pub color: Option<String>,
 }
 
-const FINETUNED_CORVO_MODEL_FILENAME: &str = "corvo-lm-finetuned.gguf";
-const OFFICIAL_CORVO_MODEL_FILENAME: &str = "corvo-lm-3b-q4_k_m.gguf";
-const OFFICIAL_CORVO_MODEL_URL: &str =
+const FINETUNED_KWRL_MODEL_FILENAME: &str = "kwrl-lm-finetuned.gguf";
+const OFFICIAL_KWRL_MODEL_FILENAME: &str = "kwrl-lm-3b-q4_k_m.gguf";
+const LEGACY_FINETUNED_MODEL_FILENAME: &str = "corvo-lm-finetuned.gguf";
+const LEGACY_OFFICIAL_MODEL_FILENAME: &str = "corvo-lm-3b-q4_k_m.gguf";
+
+// Aliases de compatibilidade
+pub const FINETUNED_CORVO_MODEL_FILENAME: &str = FINETUNED_KWRL_MODEL_FILENAME;
+pub const OFFICIAL_CORVO_MODEL_FILENAME: &str = OFFICIAL_KWRL_MODEL_FILENAME;
+
+const OFFICIAL_KWRL_MODEL_URL: &str =
     "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf";
-const OFFICIAL_CORVO_MODEL_SHA256: &str =
+const OFFICIAL_KWRL_MODEL_SHA256: &str =
     "626b4a6678b86442240e33df819e00132d3ba7dddfe1cdc4fbb18e0a9615c62d";
 
-pub struct CorvoState {
+pub struct KwrlState {
     pub db: Arc<LocalDatabase>,
     pub token_manager: TokenManager,
     pub sync_engine: Arc<GmailSyncEngine>,
@@ -74,6 +82,9 @@ pub struct CorvoState {
     pub master_ai_kill_switch: Arc<AtomicBool>,
     pub ai_bootstrap_in_flight: Arc<AtomicBool>,
 }
+
+/// Alias para manter compatibilidade com módulos e testes existentes
+pub type CorvoState = KwrlState;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -146,9 +157,9 @@ fn parse_dotenv_oauth(contents: &str) -> Option<(String, String)> {
         if let Some((k, v)) = line.split_once('=') {
             let key = k.trim();
             let val = v.trim().trim_matches('"').trim_matches('\'').to_string();
-            if key == "CORVO_GOOGLE_CLIENT_ID" && !val.is_empty() {
+            if (key == "KWRL_GOOGLE_CLIENT_ID" || key == "CORVO_GOOGLE_CLIENT_ID") && !val.is_empty() {
                 cid = Some(val);
-            } else if key == "CORVO_GOOGLE_CLIENT_SECRET" && !val.is_empty() {
+            } else if (key == "KWRL_GOOGLE_CLIENT_SECRET" || key == "CORVO_GOOGLE_CLIENT_SECRET") && !val.is_empty() {
                 csec = Some(val);
             }
         }
@@ -160,11 +171,10 @@ fn parse_dotenv_oauth(contents: &str) -> Option<(String, String)> {
 }
 
 fn try_discover_app_oauth_credentials() -> Option<(String, String)> {
-    // 1. Credenciais embutidas na compilação do Corvo via build.rs (.env)
-    if let (Some(cid), Some(csec)) = (
-        option_env!("CORVO_GOOGLE_CLIENT_ID"),
-        option_env!("CORVO_GOOGLE_CLIENT_SECRET"),
-    ) {
+    // 1. Credenciais embutidas na compilação do Kwrl via build.rs (.env)
+    let env_cid = option_env!("KWRL_GOOGLE_CLIENT_ID").or(option_env!("CORVO_GOOGLE_CLIENT_ID"));
+    let env_csec = option_env!("KWRL_GOOGLE_CLIENT_SECRET").or(option_env!("CORVO_GOOGLE_CLIENT_SECRET"));
+    if let (Some(cid), Some(csec)) = (env_cid, env_csec) {
         if !cid.trim().is_empty() && !csec.trim().is_empty() {
             return Some((cid.trim().to_string(), csec.trim().to_string()));
         }
@@ -243,21 +253,28 @@ fn load_oauth_client_config(db: &LocalDatabase) -> Result<DesktopOAuthClientConf
     // Primeiro verifica Keychain + SQLite; se ainda vazio, importa automaticamente de build/.env/JSON
     if let Ok(Some(cid)) = db.get_kv(KV_OAUTH_CLIENT_ID) {
         if !cid.trim().is_empty() {
-            if let Ok(entry) =
-                keyring::Entry::new(OAUTH_CLIENT_KEYRING_SERVICE, OAUTH_CLIENT_SECRET_KEY)
-            {
-                if let Ok(secret) = entry.get_password() {
-                    if !secret.trim().is_empty() {
-                        let cfg = DesktopOAuthClientConfig {
-                            client_id: cid,
-                            client_secret: secret,
-                        };
-                        if let Ok(mut lock) = OAUTH_CONFIG_CACHE.write() {
-                            *lock = Some(cfg.clone());
-                        }
-                        return Ok(cfg);
-                    }
+            // Tenta o serviço atual do Kwrl
+            let secret_opt = keyring::Entry::new(OAUTH_CLIENT_KEYRING_SERVICE, OAUTH_CLIENT_SECRET_KEY)
+                .ok()
+                .and_then(|e| e.get_password().ok())
+                .filter(|s| !s.trim().is_empty())
+                // Fallback para serviço anterior do Corvo
+                .or_else(|| {
+                    keyring::Entry::new(LEGACY_OAUTH_CLIENT_KEYRING_SERVICE, OAUTH_CLIENT_SECRET_KEY)
+                        .ok()
+                        .and_then(|e| e.get_password().ok())
+                        .filter(|s| !s.trim().is_empty())
+                });
+
+            if let Some(secret) = secret_opt {
+                let cfg = DesktopOAuthClientConfig {
+                    client_id: cid,
+                    client_secret: secret,
+                };
+                if let Ok(mut lock) = OAUTH_CONFIG_CACHE.write() {
+                    *lock = Some(cfg.clone());
                 }
+                return Ok(cfg);
             }
         }
     }
@@ -273,7 +290,7 @@ fn load_oauth_client_config(db: &LocalDatabase) -> Result<DesktopOAuthClientConf
         return Ok(cfg);
     }
 
-    Err("Falta registar 1 única vez a chave gratuita da app Corvo na Google (vê os 4 passos rápidos abaixo).".to_string())
+    Err("Falta registar 1 única vez a chave gratuita da app Kwrl na Google (vê os 4 passos rápidos abaixo).".to_string())
 }
 
 fn has_oauth_client_secret_in_keychain() -> bool {
@@ -285,6 +302,11 @@ fn has_oauth_client_secret_in_keychain() -> bool {
     keyring::Entry::new(OAUTH_CLIENT_KEYRING_SERVICE, OAUTH_CLIENT_SECRET_KEY)
         .and_then(|e| e.get_password())
         .map(|s| !s.trim().is_empty())
+        .or_else(|_| {
+            keyring::Entry::new(LEGACY_OAUTH_CLIENT_KEYRING_SERVICE, OAUTH_CLIENT_SECRET_KEY)
+                .and_then(|e| e.get_password())
+                .map(|s| !s.trim().is_empty())
+        })
         .unwrap_or(false)
 }
 
@@ -357,8 +379,12 @@ fn resolve_installed_official_corvo_model(
     let saved_path = db.get_kv(KV_GGUF_PATH).ok().flatten();
     let saved_sha = db.get_kv(KV_GGUF_SHA256).ok().flatten();
 
-    // 1. Prioridade máxima: modelo próprio do Corvo com Fine-Tune (`corvo-lm-finetuned.gguf`)
-    let finetuned_path = models_dir.join(FINETUNED_CORVO_MODEL_FILENAME);
+    // 1. Prioridade máxima: modelo próprio do Kwrl com Fine-Tune (`kwrl-lm-finetuned.gguf` ou legado `corvo-lm-finetuned.gguf`)
+    let finetuned_path = if models_dir.join(FINETUNED_KWRL_MODEL_FILENAME).exists() {
+        models_dir.join(FINETUNED_KWRL_MODEL_FILENAME)
+    } else {
+        models_dir.join(LEGACY_FINETUNED_MODEL_FILENAME)
+    };
     if has_valid_gguf_header_and_size(&finetuned_path).is_some() {
         let ft_str = finetuned_path.to_string_lossy().to_string();
         if saved_path.as_deref() == Some(ft_str.as_str()) {
@@ -373,17 +399,21 @@ fn resolve_installed_official_corvo_model(
         }
     }
 
-    // 2. Motor oficial padrão do Corvo (`corvo-lm-3b-q4_k_m.gguf`, Apache 2.0)
-    let official_path = models_dir.join(OFFICIAL_CORVO_MODEL_FILENAME);
+    // 2. Motor oficial padrão do Kwrl (`kwrl-lm-3b-q4_k_m.gguf` ou legado `corvo-lm-3b-q4_k_m.gguf`, Apache 2.0)
+    let official_path = if models_dir.join(OFFICIAL_KWRL_MODEL_FILENAME).exists() {
+        models_dir.join(OFFICIAL_KWRL_MODEL_FILENAME)
+    } else {
+        models_dir.join(LEGACY_OFFICIAL_MODEL_FILENAME)
+    };
     if has_valid_gguf_header_and_size(&official_path).is_some() {
         let off_str = official_path.to_string_lossy().to_string();
         if saved_path.as_deref() == Some(off_str.as_str())
-            && saved_sha.as_deref() == Some(OFFICIAL_CORVO_MODEL_SHA256)
+            && saved_sha.as_deref() == Some(OFFICIAL_KWRL_MODEL_SHA256)
         {
-            return Some((official_path, OFFICIAL_CORVO_MODEL_SHA256.to_string()));
+            return Some((official_path, OFFICIAL_KWRL_MODEL_SHA256.to_string()));
         }
         if let Ok(verified_hash) =
-            crate::llm::verify_gguf_file_sha256(&official_path, Some(OFFICIAL_CORVO_MODEL_SHA256))
+            crate::llm::verify_gguf_file_sha256(&official_path, Some(OFFICIAL_KWRL_MODEL_SHA256))
         {
             let _ = db.set_kv(KV_GGUF_PATH, &off_str);
             let _ = db.set_kv(KV_GGUF_SHA256, &verified_hash);
@@ -398,11 +428,15 @@ fn discover_local_gguf_models(app_data_dir: &std::path::Path) -> Vec<DiscoveredM
     let models_dir = app_data_dir.join("models");
     let mut out = Vec::new();
 
-    let finetuned_path = models_dir.join(FINETUNED_CORVO_MODEL_FILENAME);
+    let finetuned_path = if models_dir.join(FINETUNED_KWRL_MODEL_FILENAME).exists() {
+        models_dir.join(FINETUNED_KWRL_MODEL_FILENAME)
+    } else {
+        models_dir.join(LEGACY_FINETUNED_MODEL_FILENAME)
+    };
     if let Some(size_mb) = has_valid_gguf_header_and_size(&finetuned_path) {
         out.push(DiscoveredModelDto {
-            id: FINETUNED_CORVO_MODEL_FILENAME.into(),
-            display_name: "Motor Corvo (Fine-Tune)".into(),
+            id: FINETUNED_KWRL_MODEL_FILENAME.into(),
+            display_name: "Motor Kwrl (Fine-Tune)".into(),
             subtitle: "Afinado para português de Portugal".into(),
             path: finetuned_path.to_string_lossy().to_string(),
             size_mb,
@@ -413,15 +447,19 @@ fn discover_local_gguf_models(app_data_dir: &std::path::Path) -> Vec<DiscoveredM
         return out;
     }
 
-    let official_path = models_dir.join(OFFICIAL_CORVO_MODEL_FILENAME);
+    let official_path = if models_dir.join(OFFICIAL_KWRL_MODEL_FILENAME).exists() {
+        models_dir.join(OFFICIAL_KWRL_MODEL_FILENAME)
+    } else {
+        models_dir.join(LEGACY_OFFICIAL_MODEL_FILENAME)
+    };
     if let Some(size_mb) = has_valid_gguf_header_and_size(&official_path) {
         out.push(DiscoveredModelDto {
-            id: OFFICIAL_CORVO_MODEL_FILENAME.into(),
-            display_name: "Motor Corvo".into(),
+            id: OFFICIAL_KWRL_MODEL_FILENAME.into(),
+            display_name: "Motor Kwrl".into(),
             subtitle: "Instalado localmente neste computador".into(),
             path: official_path.to_string_lossy().to_string(),
             size_mb,
-            expected_sha256: Some(OFFICIAL_CORVO_MODEL_SHA256.into()),
+            expected_sha256: Some(OFFICIAL_KWRL_MODEL_SHA256.into()),
             recommended: true,
             is_general_purpose: true,
         });
@@ -446,14 +484,14 @@ fn spawn_silent_official_model_bootstrap(
     }
 
     tauri::async_runtime::spawn(async move {
-        let dest = app_data_dir.join("models").join(OFFICIAL_CORVO_MODEL_FILENAME);
+        let dest = app_data_dir.join("models").join(OFFICIAL_KWRL_MODEL_FILENAME);
         let app_for_progress = app.clone();
         let res = llm
             .download_gguf_with_progress_and_sha256(
                 &http_client,
-                OFFICIAL_CORVO_MODEL_URL,
+                OFFICIAL_KWRL_MODEL_URL,
                 &dest,
-                OFFICIAL_CORVO_MODEL_SHA256,
+                OFFICIAL_KWRL_MODEL_SHA256,
                 move |evt| {
                     let _ = app_for_progress.emit("ai-bootstrap-progress", &evt);
                 },
@@ -708,7 +746,7 @@ pub fn build_rfc2822_raw_message(
         + attachments.iter().map(|a| a.data_base64.len() + 256).sum::<usize>();
     let mut out = String::with_capacity(est_capacity);
 
-    let _ = write!(out, "From: {}\r\nTo: {}\r\nSubject: =?UTF-8?B?{}?=\r\nDate: {}\r\nMessage-ID: <{}.corvo@desktop>\r\n", from, to.join(", "), encoded_subject, now_date, rand_id);
+    let _ = write!(out, "From: {}\r\nTo: {}\r\nSubject: =?UTF-8?B?{}?=\r\nDate: {}\r\nMessage-ID: <{}.kwrl@desktop>\r\n", from, to.join(", "), encoded_subject, now_date, rand_id);
 
     if !cc.is_empty() {
         let _ = write!(out, "Cc: {}\r\n", cc.join(", "));
@@ -738,7 +776,7 @@ pub fn build_rfc2822_raw_message(
 
     if attachments.is_empty() {
         if let Some(html) = body_html {
-            let alt_boundary = format!("===alt_corvo_{}===", rand::random::<u64>());
+            let alt_boundary = format!("===alt_kwrl_{}===", rand::random::<u64>());
             let html_b64 = STANDARD.encode(html.as_bytes());
             let _ = write!(
                 out,
@@ -753,7 +791,7 @@ pub fn build_rfc2822_raw_message(
             );
         }
     } else {
-        let mixed_boundary = format!("===mixed_corvo_{}===", rand::random::<u64>());
+        let mixed_boundary = format!("===mixed_kwrl_{}===", rand::random::<u64>());
         let _ = write!(
             out,
             "Content-Type: multipart/mixed; boundary=\"{}\"\r\n\r\n",
@@ -761,7 +799,7 @@ pub fn build_rfc2822_raw_message(
         );
 
         if let Some(html) = body_html {
-            let alt_boundary = format!("===alt_corvo_{}===", rand::random::<u64>());
+            let alt_boundary = format!("===alt_kwrl_{}===", rand::random::<u64>());
             let html_b64 = STANDARD.encode(html.as_bytes());
             let _ = write!(
                 out,
@@ -2028,7 +2066,7 @@ pub fn show_macos_notification(_title: &str, _subtitle: &str, _body: &str) {}
 pub fn set_macos_dock_badge(count: i64) {
     let badge_str = if count > 0 { count.to_string() } else { String::new() };
     let script = format!(
-        "tell application \"System Events\" to set badge label of first process whose bundle identifier is \"pt.corvo.mail\" to \"{}\"",
+        "tell application \"System Events\" to set badge label of first process whose bundle identifier is \"app.kwrl.mail\" to \"{}\"",
         badge_str
     );
     let _ = std::process::Command::new("osascript")
@@ -2089,7 +2127,7 @@ async fn export_thread_eml(
         .take(50)
         .collect();
     let short_id = if thread_id.len() > 8 { &thread_id[..8] } else { &thread_id };
-    let filename = format!("Corvo_{}_{}.eml", safe_subject, short_id);
+    let filename = format!("Kwrl_{}_{}.eml", safe_subject, short_id);
     let target_path = downloads_dir.join(filename);
 
     let mut content = String::with_capacity(8192);
@@ -2132,8 +2170,59 @@ async fn add_custom_account(
 ) -> Result<AccountViewDto, String> {
     let prov = if provider.trim().is_empty() { "Outlook" } else { provider.trim() };
     Err(format!(
-        "O fornecedor '{prov}' ainda não está suportado nativamente. De momento, o Corvo opera em exclusivo com contas Google / Gmail através de autenticação oficial OAuth 2.0 PKCE."
+        "O fornecedor '{prov}' ainda não está suportado nativamente. De momento, o Kwrl opera em exclusivo com contas Google / Gmail através de autenticação oficial OAuth 2.0 PKCE."
     ))
+}
+
+fn migrate_legacy_corvo_data(app_data_dir: &std::path::Path) {
+    let new_db = app_data_dir.join("kwrl_cache.sqlite3");
+    let legacy_db_current = app_data_dir.join("corvo_cache.sqlite3");
+
+    // 1. Se existir corvo_cache.sqlite3 dentro da diretoria atual e kwrl_cache.sqlite3 ainda não existir:
+    if !new_db.exists() && legacy_db_current.exists() {
+        let _ = std::fs::copy(&legacy_db_current, &new_db);
+    }
+
+    // 2. Se a diretoria do SO anterior (pt.corvo.mail) existir, migrar dados:
+    if let Some(parent) = app_data_dir.parent() {
+        let legacy_data_dir = parent.join("pt.corvo.mail");
+        if legacy_data_dir.exists() && legacy_data_dir.is_dir() {
+            let legacy_db = legacy_data_dir.join("corvo_cache.sqlite3");
+            if !new_db.exists() && legacy_db.exists() {
+                let _ = std::fs::copy(&legacy_db, &new_db);
+            }
+            let legacy_models = legacy_data_dir.join("models");
+            let new_models = app_data_dir.join("models");
+            if legacy_models.exists() && legacy_models.is_dir() {
+                let _ = std::fs::create_dir_all(&new_models);
+                if let Ok(entries) = std::fs::read_dir(&legacy_models) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.is_file() {
+                            let file_name = entry.file_name();
+                            let dest_file = new_models.join(&file_name);
+                            if !dest_file.exists() {
+                                let _ = std::fs::copy(&path, &dest_file);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Renomear/copiar modelos legados locais para os novos nomes oficiais
+    let models_dir = app_data_dir.join("models");
+    let legacy_official = models_dir.join(LEGACY_OFFICIAL_MODEL_FILENAME);
+    let new_official = models_dir.join(OFFICIAL_KWRL_MODEL_FILENAME);
+    if !new_official.exists() && legacy_official.exists() {
+        let _ = std::fs::copy(&legacy_official, &new_official);
+    }
+    let legacy_finetuned = models_dir.join(LEGACY_FINETUNED_MODEL_FILENAME);
+    let new_finetuned = models_dir.join(FINETUNED_KWRL_MODEL_FILENAME);
+    if !new_finetuned.exists() && legacy_finetuned.exists() {
+        let _ = std::fs::copy(&legacy_finetuned, &new_finetuned);
+    }
 }
 
 pub fn run() {
@@ -2142,13 +2231,16 @@ pub fn run() {
             let app_data_dir = app
                 .path()
                 .app_local_data_dir()
-                .unwrap_or_else(|_| PathBuf::from("./corvo-data"));
+                .unwrap_or_else(|_| PathBuf::from("./kwrl-data"));
             let _ = std::fs::create_dir_all(&app_data_dir);
 
-            let db_path = app_data_dir.join("corvo_cache.sqlite3");
+            // Migração transparente de dados do Corvo para o Kwrl (zero perda de dados)
+            migrate_legacy_corvo_data(&app_data_dir);
+
+            let db_path = app_data_dir.join("kwrl_cache.sqlite3");
             let db = Arc::new(
                 LocalDatabase::open(&db_path)
-                    .expect("Falha crítica ao abrir base de dados SQLite local do Corvo"),
+                    .expect("Falha crítica ao abrir base de dados SQLite local do Kwrl"),
             );
 
             let poll_secs: u64 = db
@@ -2217,7 +2309,7 @@ pub fn run() {
             });
 
             let ai_bootstrap_in_flight = Arc::new(AtomicBool::new(false));
-            // Se for o 1.º arranque neste computador, inicia transferência silenciosa automática do motor único do Corvo
+            // Se for o 1.º arranque neste computador, inicia transferência silenciosa automática do motor único do Kwrl
             if saved_gguf.is_none() && !kill_switch {
                 spawn_silent_official_model_bootstrap(
                     app.handle().clone(),
@@ -2337,7 +2429,7 @@ pub fn run() {
             open_external_url,
         ])
         .run(tauri::generate_context!())
-        .expect("Erro ao executar a aplicação desktop Corvo");
+        .expect("Erro ao executar a aplicação desktop Kwrl");
 }
 
 #[cfg(test)]

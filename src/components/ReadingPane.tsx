@@ -1,7 +1,7 @@
 import React, { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { formatFileSize } from '../services/documentParser';
 import { exportThreadEml, rewriteTextWithAi } from '../services/tauriBridge';
-import { EmailAttachment, ThreadDetail } from '../types/corvo';
+import { EmailAttachment, ThreadDetail } from '../types/kwrl';
 import {
   IconArchive,
   IconArrowUp,

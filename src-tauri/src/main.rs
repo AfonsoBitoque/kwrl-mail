@@ -4,5 +4,5 @@
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn main() {
-    corvo_lib::run();
+    kwrl_lib::run();
 }

@@ -18,7 +18,7 @@ import {
   InjectionInspection,
   LocalModelStatus,
   ThreadDetail,
-} from '../types/corvo';
+} from '../types/kwrl';
 import { IconArrowUp, IconClose, IconFile, IconPaperclip, IconSliders } from './Icons';
 
 interface CalmAIPanelProps {
@@ -445,8 +445,8 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <p style={{ margin: 0, fontSize: '12px', color: 'var(--mute)' }}>
                 {modelStatus.bootstrapPhase === 'verifying'
-                  ? 'A verificar o Motor Corvo local…'
-                  : 'Primeira abertura: a preparar o Motor Corvo neste Mac para funcionar sempre offline.'}
+                  ? 'A verificar o Motor Kwrl local…'
+                  : 'Primeira abertura: a preparar o Motor Kwrl neste computador para funcionar sempre offline.'}
               </p>
               <div
                 style={{

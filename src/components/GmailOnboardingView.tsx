@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { GmailScopeMode } from '../types/corvo';
-import { CorvoMark, IconCheck, IconGoogleMark } from './Icons';
+import { GmailScopeMode } from '../types/kwrl';
+import { IconCheck, IconGoogleMark, KwrlMark } from './Icons';
 import { openExternalUrl } from '../services/tauriBridge';
 
 interface GmailOnboardingViewProps {
@@ -71,8 +71,8 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
       <article className="reading-article" style={{ maxWidth: '580px' }}>
         <header className="reading-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <CorvoMark size={20} />
-            <span className="type-kicker">Corvo · Correio Local & Código Aberto</span>
+            <KwrlMark size={20} />
+            <span className="type-kicker">Kwrl · Correio Local & Código Aberto</span>
           </div>
 
           <h1 className="type-thread-subject" style={{ marginTop: '10px' }}>
@@ -90,7 +90,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
             }}
           >
             {showSetup
-              ? 'O Corvo é 100% privado, local e sem servidores intermédios. Para ligares o Gmail com total soberania e sem custos de auditoria comercial, utiliza a tua própria chave gratuita da Google Cloud.'
+              ? 'O Kwrl é 100% privado, local e sem servidores intermédios. Para ligares o Gmail com total soberania e sem custos de auditoria comercial, utiliza a tua própria chave gratuita da Google Cloud.'
               : 'Abre o início de sessão oficial da Google no teu browser habitual. Os teus e-mails ficam guardados localmente neste computador e a sessão protegida no Keychain do sistema.'}
           </p>
         </header>
@@ -276,7 +276,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                   Ativar a Gmail API na Google Cloud
                 </strong>
                 <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
-                  Acede à Google Cloud Console, cria um projeto gratuito (ex: <em>Corvo Mail</em>) e clica em <strong>Ativar</strong> (Enable).
+                  Acede à Google Cloud Console, cria um projeto gratuito (ex: <em>Kwrl Mail</em>) e clica em <strong>Ativar</strong> (Enable).
                 </p>
                 <div style={{ marginTop: '8px' }}>
                   <button
@@ -325,7 +325,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                 </strong>
                 <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
                   No menu <strong>Ecrã de consentimento OAuth</strong> (*OAuth consent screen*), seleciona tipo <strong>Externo</strong> (*External*).<br />
-                  ⚠️ <strong>Passo Crítico:</strong> Na secção <strong>Público-alvo</strong> (*Audience*) ou <strong>Utilizadores de Teste</strong> (*Test users*), clica obrigatoriamente em <strong>&ldquo;+ Adicionar utilizadores&rdquo;</strong> e introduz todos os e-mails Gmail que vais usar no Corvo. Se não adicionares o teu e-mail aqui, a Google bloqueará o acesso com <em>Erro 403 (access_denied)</em>.
+                  ⚠️ <strong>Passo Crítico:</strong> Na secção <strong>Público-alvo</strong> (*Audience*) ou <strong>Utilizadores de Teste</strong> (*Test users*), clica obrigatoriamente em <strong>&ldquo;+ Adicionar utilizadores&rdquo;</strong> e introduz todos os e-mails Gmail que vais usar no Kwrl. Se não adicionares o teu e-mail aqui, a Google bloqueará o acesso com <em>Erro 403 (access_denied)</em>.
                 </p>
                 <div style={{ marginTop: '8px' }}>
                   <button

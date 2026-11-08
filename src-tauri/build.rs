@@ -14,7 +14,10 @@ fn main() {
             if let Some((k, v)) = line.split_once('=') {
                 let key = k.trim();
                 let val = v.trim().trim_matches('"').trim_matches('\'');
-                if (key == "CORVO_GOOGLE_CLIENT_ID" || key == "CORVO_GOOGLE_CLIENT_SECRET")
+                if (key == "KWRL_GOOGLE_CLIENT_ID"
+                    || key == "KWRL_GOOGLE_CLIENT_SECRET"
+                    || key == "CORVO_GOOGLE_CLIENT_ID"
+                    || key == "CORVO_GOOGLE_CLIENT_SECRET")
                     && !val.is_empty()
                 {
                     println!("cargo:rustc-env={}={}", key, val);

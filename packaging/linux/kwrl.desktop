@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=Kwrl
+GenericName=Cliente de E-mail Calmo
+Comment=Cliente de e-mail calmo e seguro com IA local llama.cpp e Gmail OAuth2
+Exec=kwrl %u
+Icon=kwrl
+Terminal=false
+Type=Application
+Categories=Office;Network;Email;
+MimeType=x-scheme-handler/mailto;
+StartupWMClass=kwrl
+Keywords=email;gmail;mail;kwrl;corvo;ai;llama;
+X-Purism-FormFactor=Workstation;Mobile;

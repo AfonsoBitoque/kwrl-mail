@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # ==============================================================================
-# Script de Instalação Automática do Corvo para Arch Linux / derivados (Manjaro, EndeavourOS)
+# Script de Instalação Automática do Kwrl para Arch Linux / derivados (Manjaro, EndeavourOS)
 # ==============================================================================
 
 echo "=========================================="
-echo "  Instalador Automático do Corvo (Arch Linux)"
+echo "  Instalador Automático do Kwrl (Arch Linux)"
 echo "=========================================="
 
 if ! command -v pacman &>/dev/null; then
@@ -92,11 +92,11 @@ echo "-> A instalar dependências Node e compilar Frontend (Vite)..."
 npm install
 npm run build
 
-echo "-> A compilar motor de IA isolado (corvo-llm-worker)..."
+echo "-> A compilar motor de IA isolado (kwrl-llm-worker)..."
 # shellcheck disable=SC2086
-cargo build --manifest-path src-tauri/Cargo.toml --release --bin corvo-llm-worker ${CARGO_FLAGS}
+cargo build --manifest-path src-tauri/Cargo.toml --release --bin kwrl-llm-worker ${CARGO_FLAGS}
 
-echo "-> A compilar o Corvo com assets de produção embutidos (Tauri)..."
+echo "-> A compilar o Kwrl com assets de produção embutidos (Tauri)..."
 if [ -n "${CARGO_FLAGS}" ]; then
     # shellcheck disable=SC2086
     npx tauri build --no-bundle ${CARGO_FLAGS}
@@ -111,22 +111,30 @@ INSTALL_PREFIX="${INSTALL_PREFIX:-/usr/local}"
 
 echo "-> A copiar binários para ${INSTALL_PREFIX}/bin..."
 sudo install -d "${INSTALL_PREFIX}/bin"
-sudo install -m 755 src-tauri/target/release/corvo-desktop "${INSTALL_PREFIX}/bin/corvo-desktop"
-sudo install -m 755 src-tauri/target/release/corvo-llm-worker "${INSTALL_PREFIX}/bin/corvo-llm-worker"
+sudo install -m 755 src-tauri/target/release/kwrl "${INSTALL_PREFIX}/bin/kwrl"
+sudo install -m 755 src-tauri/target/release/kwrl-llm-worker "${INSTALL_PREFIX}/bin/kwrl-llm-worker"
+
+# Symlinks de compatibilidade para quem usava corvo-desktop
+sudo ln -sf "${INSTALL_PREFIX}/bin/kwrl" "${INSTALL_PREFIX}/bin/corvo-desktop"
+sudo ln -sf "${INSTALL_PREFIX}/bin/kwrl-llm-worker" "${INSTALL_PREFIX}/bin/corvo-llm-worker"
 
 echo "-> A instalar atalho no ambiente de trabalho (.desktop)..."
 sudo install -d "${INSTALL_PREFIX}/share/applications"
+sudo install -m 644 packaging/linux/kwrl.desktop "${INSTALL_PREFIX}/share/applications/kwrl.desktop"
 sudo install -m 644 packaging/linux/corvo.desktop "${INSTALL_PREFIX}/share/applications/corvo.desktop"
 
 echo "-> A instalar ícones da aplicação..."
 sudo install -d "${INSTALL_PREFIX}/share/icons/hicolor/32x32/apps"
-sudo install -m 644 src-tauri/icons/32x32.png "${INSTALL_PREFIX}/share/icons/hicolor/32x32/apps/corvo.png"
+sudo install -m 644 src-tauri/icons/32x32.png "${INSTALL_PREFIX}/share/icons/hicolor/32x32/apps/kwrl.png"
+sudo ln -sf kwrl.png "${INSTALL_PREFIX}/share/icons/hicolor/32x32/apps/corvo.png"
 
 sudo install -d "${INSTALL_PREFIX}/share/icons/hicolor/128x128/apps"
-sudo install -m 644 src-tauri/icons/128x128.png "${INSTALL_PREFIX}/share/icons/hicolor/128x128/apps/corvo.png"
+sudo install -m 644 src-tauri/icons/128x128.png "${INSTALL_PREFIX}/share/icons/hicolor/128x128/apps/kwrl.png"
+sudo ln -sf kwrl.png "${INSTALL_PREFIX}/share/icons/hicolor/128x128/apps/corvo.png"
 
 sudo install -d "${INSTALL_PREFIX}/share/pixmaps"
-sudo install -m 644 src-tauri/icons/icon.png "${INSTALL_PREFIX}/share/pixmaps/corvo.png"
+sudo install -m 644 src-tauri/icons/icon.png "${INSTALL_PREFIX}/share/pixmaps/kwrl.png"
+sudo ln -sf kwrl.png "${INSTALL_PREFIX}/share/pixmaps/corvo.png"
 
 if command -v update-desktop-database &>/dev/null; then
     sudo update-desktop-database "${INSTALL_PREFIX}/share/applications" || true
@@ -137,7 +145,7 @@ echo "================================================================="
 echo "  Instalação concluída com sucesso no Arch Linux!"
 echo "================================================================="
 echo ""
-echo "Pode agora abrir o Corvo de duas formas:"
-echo "  1. No menu de aplicações do seu ambiente de trabalho (pesquisar por 'Corvo')"
-echo "  2. Pelo terminal com o comando: corvo-desktop"
+echo "Pode agora abrir o Kwrl de duas formas:"
+echo "  1. No menu de aplicações do seu ambiente de trabalho (pesquisar por 'Kwrl')"
+echo "  2. Pelo terminal com o comando: kwrl"
 echo ""

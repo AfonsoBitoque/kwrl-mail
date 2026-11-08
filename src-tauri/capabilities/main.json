@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-capability",
-  "description": "Capability restrita da janela principal do Corvo: apenas IPC core e receção de eventos de streaming/sincronização. Sem fs:* nem shell:*.",
+  "description": "Capability restrita da janela principal do Kwrl: apenas IPC core e receção de eventos de streaming/sincronização. Sem fs:* nem shell:*.",
   "windows": ["main"],
   "permissions": [
     "core:default",

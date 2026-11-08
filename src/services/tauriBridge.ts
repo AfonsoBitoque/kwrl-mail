@@ -15,7 +15,7 @@ import {
   SyncReport,
   ThreadListItem,
   ThreadOpenPayload,
-} from '../types/corvo';
+} from '../types/kwrl';
 
 export function isRunningInsideTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -155,11 +155,11 @@ export function resolveFriendlyModelName(
       return matched.displayName;
     }
     if (modelStatus.modelPath.includes('finetuned')) {
-      return 'Motor Corvo (Fine-Tune)';
+      return 'Motor Kwrl (Fine-Tune)';
     }
-    return 'Motor Corvo';
+    return 'Motor Kwrl';
   }
-  return 'Motor Corvo';
+  return 'Motor Kwrl';
 }
 
 export async function subscribeToAiBootstrapProgress(

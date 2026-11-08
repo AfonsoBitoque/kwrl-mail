@@ -1,4 +1,4 @@
-//! Processo Sidecar Isolado de Inferência `llama.cpp` (`corvo-llm-worker`, §2.1, §2.2 & §3.3)
+//! Processo Sidecar Isolado de Inferência `llama.cpp` (`kwrl-llm-worker`, §2.1, §2.2 & §3.3)
 //!
 //! Propriedades de isolamento e performance:
 //! 1. Executa num espaço de endereçamento separado do processo principal Tauri:

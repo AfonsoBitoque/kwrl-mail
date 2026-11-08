@@ -532,7 +532,7 @@ impl GmailSyncEngine {
             for rec in &all_records {
                 if rec.unread {
                     crate::show_macos_notification(
-                        "Corvo Mail",
+                        "Kwrl Mail",
                         &format!("Nova mensagem de {}", rec.from_name),
                         &rec.subject,
                     );
@@ -555,7 +555,7 @@ impl GmailSyncEngine {
         email: &str,
         chunk_ids: &[String],
     ) -> Result<Vec<GmailMessageDto>, GmailSyncError> {
-        let boundary = "corvo_gmail_batch_v1";
+        let boundary = "kwrl_gmail_batch_v1";
         let payload = bytes::Bytes::from(build_batch_metadata_request_body(chunk_ids, boundary));
         let batch_url = format!("{}/batch/gmail/v1", self.endpoints.api_base);
         let mut retried_401 = false;
@@ -862,7 +862,7 @@ pub fn build_batch_metadata_request_body(ids: &[String], boundary: &str) -> Stri
     for (idx, msg_id) in capped.iter().enumerate() {
         let _ = write!(
             out,
-            "--{}\r\nContent-Type: application/http\r\nContent-ID: <corvo-item-{}>\r\n\r\nGET /gmail/v1/users/me/messages/{}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=Message-ID HTTP/1.1\r\n\r\n",
+            "--{}\r\nContent-Type: application/http\r\nContent-ID: <kwrl-item-{}>\r\n\r\nGET /gmail/v1/users/me/messages/{}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date&metadataHeaders=Message-ID HTTP/1.1\r\n\r\n",
             boundary,
             idx,
             urlencoding_param(msg_id)
@@ -1389,7 +1389,7 @@ mod tests {
         let sample_response = "\
 --batch_resp_1\r\n\
 Content-Type: application/http\r\n\
-Content-ID: <response-corvo-item-0>\r\n\r\n\
+Content-ID: <response-kwrl-item-0>\r\n\r\n\
 HTTP/1.1 200 OK\r\n\
 Content-Type: application/json; charset=UTF-8\r\n\r\n\
 {\"id\":\"18f1a\",\"threadId\":\"18f1a\",\"labelIds\":[\"INBOX\",\"UNREAD\"],\"snippet\":\"Envio a proposta na sexta-feira\",\"internalDate\":\"1730810000000\",\"payload\":{\"headers\":[{\"name\":\"From\",\"value\":\"João <joao@matriz.pt>\"},{\"name\":\"Subject\",\"value\":\"Orçamento Q3\"}]}}\r\n\
