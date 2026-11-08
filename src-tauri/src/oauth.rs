@@ -199,7 +199,9 @@ pub async fn await_loopback_authorization_code(
             let _ = write_http_response(
                 &mut stream,
                 "404 Not Found",
-                "Recurso nao encontrado.",
+                false,
+                "Recurso não encontrado",
+                "O endereço solicitado não é reconhecido pelo Corvo.",
             )
             .await;
             continue;
@@ -225,7 +227,9 @@ pub async fn await_loopback_authorization_code(
             let _ = write_http_response(
                 &mut stream,
                 "400 Bad Request",
-                "Autorizacao cancelada. Podes fechar este separador e voltar ao Corvo.",
+                false,
+                "Autorização cancelada",
+                "A autorização no Google foi cancelada. Podes fechar este separador e voltar ao Corvo.",
             )
             .await;
             drop(listener);
@@ -241,7 +245,9 @@ pub async fn await_loopback_authorization_code(
             let _ = write_http_response(
                 &mut stream,
                 "400 Bad Request",
-                "Erro de seguranca: parametro state invalido.",
+                false,
+                "Erro de segurança",
+                "A validação de segurança CSRF falhou (parâmetro state inválido). Podes fechar este separador e tentar novamente.",
             )
             .await;
             drop(listener);
@@ -253,7 +259,9 @@ pub async fn await_loopback_authorization_code(
                 let _ = write_http_response(
                     &mut stream,
                     "200 OK",
-                    "Conta Google autenticada com sucesso. Podes fechar este separador e regressar ao Corvo.",
+                    true,
+                    "Sessão iniciada com sucesso",
+                    "A tua conta Google foi autenticada no Corvo. Podes fechar este separador e regressar à aplicação.",
                 )
                 .await;
                 // Fecha imediatamente o socket loopback efémero (§1.1.4)
@@ -264,7 +272,9 @@ pub async fn await_loopback_authorization_code(
                 let _ = write_http_response(
                     &mut stream,
                     "400 Bad Request",
-                    "Codigo de autorizacao em falta.",
+                    false,
+                    "Código de autorização em falta",
+                    "A Google não devolveu um código de autorização válido. Tenta novamente no Corvo.",
                 )
                 .await;
                 drop(listener);
@@ -277,19 +287,162 @@ pub async fn await_loopback_authorization_code(
 async fn write_http_response(
     stream: &mut tokio::net::TcpStream,
     status: &str,
+    is_success: bool,
+    title: &str,
     message: &str,
 ) -> std::io::Result<()> {
+    let icon_svg = if is_success {
+        r#"<svg width="26" height="26" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M3.5 15.5L9.5 4.2L16.8 8.2L11.2 11.4L14.4 15.5H3.5Z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/>
+          <circle cx="11.4" cy="7.8" r="0.9" fill="currentColor"/>
+        </svg>"#
+    } else {
+        r#"<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>"#
+    };
+
+    let pill_badge = if is_success {
+        r#"<div class="pill">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M3.5 8.5L6.5 11.5L12.5 4.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>Podes fechar este separador com segurança</span>
+        </div>"#
+    } else {
+        r#"<div class="pill pill-error">
+          <span>Verifica os dados e tenta novamente no Corvo</span>
+        </div>"#
+    };
+
     let html = format!(
-        "<!doctype html><html lang=\"pt-PT\"><head><meta charset=\"utf-8\"><title>Corvo</title>\
-         <style>body{{background:#faf9f5;color:#181715;font-family:Georgia,serif;padding:64px;max-width:480px;line-height:1.5}}\
-         h1{{font-weight:400;font-size:22px;margin:0 0 12px;color:#1f4d3d}}</style></head>\
-         <body><h1>Corvo</h1><p>{}</p></body></html>",
-        message
+        r#"<!doctype html>
+<html lang="pt-PT">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Corvo · Início de Sessão</title>
+  <style>
+    :root {{
+      --bg: #fcfbfc;
+      --card: #ffffff;
+      --ink: #1e1a22;
+      --mute: #5e576a;
+      --line: #e6e2e8;
+      --acc: #7567a3;
+      --soft: #f0eef6;
+      --shadow: 0 8px 30px rgba(30, 26, 34, 0.05);
+    }}
+    @media (prefers-color-scheme: dark) {{
+      :root {{
+        --bg: #151218;
+        --card: #1c181f;
+        --ink: #efeaf2;
+        --mute: #aca5b4;
+        --line: #2d2832;
+        --acc: #b4a9d6;
+        --soft: #222030;
+        --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+      }}
+    }}
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      background-color: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      -webkit-font-smoothing: antialiased;
+    }}
+    .card {{
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 40px 32px;
+      max-width: 440px;
+      width: 100%;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }}
+    .icon-box {{
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: var(--soft);
+      border: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--acc);
+      margin-bottom: 18px;
+    }}
+    .kicker {{
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--acc);
+      margin-bottom: 8px;
+    }}
+    h1 {{
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 10px;
+      line-height: 1.3;
+    }}
+    p {{
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--mute);
+      margin-bottom: 24px;
+    }}
+    .pill {{
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 16px;
+      border-radius: 9999px;
+      background: var(--soft);
+      border: 1px solid var(--line);
+      font-size: 12.5px;
+      color: var(--mute);
+      font-weight: 500;
+    }}
+    .pill-error {{
+      color: #b91c1c;
+      background: rgba(239, 68, 68, 0.08);
+      border-color: rgba(239, 68, 68, 0.2);
+    }}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-box">
+      {}
+    </div>
+    <div class="kicker">Corvo · Correio Local</div>
+    <h1>{}</h1>
+    <p>{}</p>
+    {}
+  </div>
+</body>
+</html>"#,
+        icon_svg, title, message, pill_badge
     );
+
     let response = format!(
         "HTTP/1.1 {}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\nCache-Control: no-store\r\n\r\n{}",
         status,
-        html.len(),
+        html.as_bytes().len(),
         html
     );
     stream.write_all(response.as_bytes()).await?;
