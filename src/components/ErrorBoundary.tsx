@@ -1,4 +1,9 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
+import { en } from '../i18n/translations/en';
+import { pt } from '../i18n/translations/pt';
+import { fr } from '../i18n/translations/fr';
+import { es } from '../i18n/translations/es';
+import { SupportedLanguage } from '../i18n/types';
 
 interface Props {
   children: ReactNode;
@@ -9,6 +14,33 @@ interface State {
   error: Error | null;
   errorInfo: ErrorInfo | null;
 }
+
+const ERROR_STRINGS: Record<SupportedLanguage, { title: string; desc: string; recover: string; reload: string }> = {
+  en: {
+    title: en.errorBoundary.title,
+    desc: en.errorBoundary.desc,
+    recover: en.errorBoundary.recoverButton,
+    reload: en.errorBoundary.reloadApp,
+  },
+  pt: {
+    title: pt.errorBoundary.title,
+    desc: pt.errorBoundary.desc,
+    recover: pt.errorBoundary.recoverButton,
+    reload: pt.errorBoundary.reloadApp,
+  },
+  fr: {
+    title: fr.errorBoundary.title,
+    desc: fr.errorBoundary.desc,
+    recover: fr.errorBoundary.recoverButton,
+    reload: fr.errorBoundary.reloadApp,
+  },
+  es: {
+    title: es.errorBoundary.title,
+    desc: es.errorBoundary.desc,
+    recover: es.errorBoundary.recoverButton,
+    reload: es.errorBoundary.reloadApp,
+  },
+};
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
@@ -39,6 +71,10 @@ export class ErrorBoundary extends Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
+      const stored = (typeof window !== 'undefined' ? localStorage.getItem('kwrl_language') : null) as SupportedLanguage | null;
+      const lang: SupportedLanguage = stored && ['en', 'pt', 'fr', 'es'].includes(stored) ? stored : 'en';
+      const strings = ERROR_STRINGS[lang] || ERROR_STRINGS.en;
+
       return (
         <div
           style={{
@@ -70,12 +106,12 @@ export class ErrorBoundary extends Component<Props, State> {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <span style={{ fontSize: '24px' }}>⚠️</span>
               <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
-                Ocorreu um erro inesperado na interface
+                {strings.title}
               </h2>
             </div>
 
             <p style={{ margin: 0, fontSize: '13px', color: 'var(--mute, #888888)', lineHeight: 1.5 }}>
-              O Kwrl isolou a falha visual para proteger os teus dados e o estado da aplicação.
+              {strings.desc}
             </p>
 
             {this.state.error && (
@@ -113,7 +149,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   fontWeight: 500,
                 }}
               >
-                Tentar recuperar ecrã
+                {strings.recover}
               </button>
               <button
                 type="button"
@@ -130,7 +166,7 @@ export class ErrorBoundary extends Component<Props, State> {
                   fontWeight: 600,
                 }}
               >
-                Recarregar aplicação
+                {strings.reload}
               </button>
             </div>
           </div>

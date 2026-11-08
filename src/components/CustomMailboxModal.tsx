@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AccountView, CustomMailbox } from '../types/kwrl';
 import { IconClose, IconFolder, IconMail } from './Icons';
+import { useI18n } from '../i18n';
 
 interface CustomMailboxModalProps {
   open: boolean;
@@ -17,6 +18,7 @@ export const CustomMailboxModal: React.FC<CustomMailboxModalProps> = ({
   onClose,
   onSave,
 }) => {
+  const { t } = useI18n();
   const [name, setName] = useState('');
   const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -54,11 +56,11 @@ export const CustomMailboxModal: React.FC<CustomMailboxModalProps> = ({
     e.preventDefault();
     const cleanName = name.trim();
     if (!cleanName) {
-      setError('Por favor indica um nome para a caixa.');
+      setError(t('customMailbox.errorNameRequired'));
       return;
     }
     if (selectedEmails.length === 0) {
-      setError('Seleciona pelo menos uma conta de e-mail para esta caixa.');
+      setError(t('customMailbox.errorAccountRequired'));
       return;
     }
     onSave(cleanName, selectedEmails);
@@ -119,7 +121,7 @@ export const CustomMailboxModal: React.FC<CustomMailboxModalProps> = ({
               <IconFolder size={18} />
             </span>
             <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--ink)' }}>
-              {initialMailbox ? 'Editar Caixa de E-mail' : 'Nova Caixa de E-mail'}
+              {initialMailbox ? t('customMailbox.titleEdit') : t('customMailbox.titleNew')}
             </span>
           </div>
 
@@ -127,8 +129,8 @@ export const CustomMailboxModal: React.FC<CustomMailboxModalProps> = ({
             type="button"
             className="tinta-toolbar-btn"
             onClick={onClose}
-            title="Fechar"
-            aria-label="Fechar"
+            title={t('common.close')}
+            aria-label={t('common.close')}
           >
             <IconClose size={14} />
           </button>
@@ -136,14 +138,10 @@ export const CustomMailboxModal: React.FC<CustomMailboxModalProps> = ({
 
         {/* Formulário */}
         <form onSubmit={handleSubmit} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--mute)', lineHeight: 1.45 }}>
-            Cria uma caixa dedicada para filtrar e mostrar apenas os e-mails das contas que escolheres (por exemplo: Trabalho, Clientes ou Pessoal).
-          </p>
-
           {/* Nome da Caixa */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>
-              Nome da caixa
+              {t('customMailbox.nameLabel')}
             </label>
             <input
               type="text"
@@ -153,7 +151,7 @@ export const CustomMailboxModal: React.FC<CustomMailboxModalProps> = ({
                 setName(e.target.value);
                 if (error) setError(null);
               }}
-              placeholder="Ex: Trabalho, Pessoal, Projetos..."
+              placeholder={t('customMailbox.namePlaceholder')}
               style={{
                 width: '100%',
                 padding: '8px 12px',
@@ -173,7 +171,7 @@ export const CustomMailboxModal: React.FC<CustomMailboxModalProps> = ({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>
-                Contas a incluir nesta caixa ({selectedEmails.length}/{accounts.length})
+                {t('customMailbox.accountsLabel')} ({selectedEmails.length}/{accounts.length})
               </label>
               {accounts.length > 1 && (
                 <button
@@ -188,7 +186,7 @@ export const CustomMailboxModal: React.FC<CustomMailboxModalProps> = ({
                   }}
                   onClick={handleSelectAll}
                 >
-                  {selectedEmails.length === accounts.length ? 'Desmarcar todas' : 'Selecionar todas'}
+                  {selectedEmails.length === accounts.length ? t('emailList.deselectAll') : t('customMailbox.selectAllAccounts')}
                 </button>
               )}
             </div>
@@ -208,7 +206,7 @@ export const CustomMailboxModal: React.FC<CustomMailboxModalProps> = ({
             >
               {accounts.length === 0 ? (
                 <span style={{ fontSize: '12px', color: 'var(--mute)', padding: '8px' }}>
-                  Nenhuma conta de e-mail ligada.
+                  {t('settings.noAccounts')}
                 </span>
               ) : (
                 accounts.map((acc) => {
@@ -284,7 +282,7 @@ export const CustomMailboxModal: React.FC<CustomMailboxModalProps> = ({
               className="tinta-btn-secondary"
               onClick={onClose}
             >
-              Cancelar
+              {t('common.cancel')}
             </button>
             <button
               type="submit"
@@ -294,7 +292,7 @@ export const CustomMailboxModal: React.FC<CustomMailboxModalProps> = ({
                 opacity: !name.trim() || selectedEmails.length === 0 ? 0.5 : 1,
               }}
             >
-              {initialMailbox ? 'Guardar alterações' : 'Criar caixa'}
+              {t('customMailbox.saveButton')}
             </button>
           </div>
         </form>

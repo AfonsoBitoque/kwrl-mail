@@ -47,6 +47,7 @@ const KV_ALLOW_OLLAMA_FALLBACK: &str = "allow_ollama_fallback";
 const KV_OLLAMA_TAG: &str = "ollama_model_tag";
 const KV_USER_SIGNATURE_NAME: &str = "user_signature_name";
 const KV_CUSTOM_MAILBOXES: &str = "custom_mailboxes_json";
+const KV_UI_LANGUAGE: &str = "ui_language";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -126,6 +127,7 @@ pub struct BootstrapStateDto {
     pub model_status: LocalModelStatus,
     pub available_models: Vec<DiscoveredModelDto>,
     pub custom_mailboxes: Vec<CustomMailboxDto>,
+    pub ui_language: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -557,6 +559,13 @@ async fn get_bootstrap_state(state: State<'_, CorvoState>) -> Result<BootstrapSt
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_default();
 
+    let ui_language = state
+        .db
+        .get_kv(KV_UI_LANGUAGE)
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "en".to_string());
+
     Ok(BootstrapStateDto {
         oauth_client_id,
         oauth_secret_in_keychain: oauth_ready,
@@ -567,6 +576,7 @@ async fn get_bootstrap_state(state: State<'_, CorvoState>) -> Result<BootstrapSt
         model_status: state.llm.status().await,
         available_models,
         custom_mailboxes,
+        ui_language,
     })
 }
 
@@ -1755,6 +1765,29 @@ async fn update_user_signature_name(
 }
 
 #[tauri::command]
+async fn save_ui_language(state: State<'_, CorvoState>, language: String) -> Result<String, String> {
+    let lang = match language.trim().to_lowercase().as_str() {
+        "pt" => "pt",
+        "fr" => "fr",
+        "es" => "es",
+        _ => "en",
+    };
+    state.db.set_kv(KV_UI_LANGUAGE, lang).map_err(|e| e.to_string())?;
+    Ok(lang.to_string())
+}
+
+#[tauri::command]
+async fn get_ui_language(state: State<'_, CorvoState>) -> Result<String, String> {
+    let lang = state
+        .db
+        .get_kv(KV_UI_LANGUAGE)
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "en".to_string());
+    Ok(lang)
+}
+
+#[tauri::command]
 async fn register_local_gguf_model(
     state: State<'_, CorvoState>,
     model_path: String,
@@ -2427,6 +2460,8 @@ pub fn run() {
             export_thread_eml,
             add_custom_account,
             open_external_url,
+            save_ui_language,
+            get_ui_language,
         ])
         .run(tauri::generate_context!())
         .expect("Erro ao executar a aplicação desktop Kwrl");

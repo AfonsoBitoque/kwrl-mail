@@ -71,6 +71,7 @@ export interface BootstrapState {
   modelStatus: LocalModelStatus;
   availableModels: DiscoveredModel[];
   customMailboxes: CustomMailbox[];
+  uiLanguage?: string;
 }
 
 export interface MutationResult {

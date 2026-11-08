@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { useI18n } from '../i18n';
 import { AccountView, CustomMailbox } from '../types/kwrl';
 import {
   IconArchive,
@@ -90,28 +91,78 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
   onDeleteCustomMailbox,
   onCompose,
 }) => {
+  const { t, language, setLanguage } = useI18n();
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
 
   const initials = getInitials(userName, userEmail);
   const isMultiAccount = accounts.length > 1;
 
+  const getBoxLabel = (id: StandardBoxId) => {
+    switch (id) {
+      case 'inbox':
+        return isMultiAccount ? `${t('sidebar.inbox')} (All)` : t('sidebar.inbox');
+      case 'starred':
+        return t('sidebar.starred');
+      case 'drafts':
+        return t('sidebar.drafts');
+      case 'sent':
+        return t('sidebar.sent');
+      case 'archive':
+        return t('sidebar.archive');
+      case 'spam':
+        return t('sidebar.spam');
+      case 'trash':
+        return t('sidebar.trash');
+      default:
+        return id;
+    }
+  };
+
   return (
-    <aside className="tinta-sidebar" aria-label="Caixas de correio">
-      {/* Topo: Nome da App Kwrl */}
-      <div className="tinta-sidebar-header">
+    <aside className="tinta-sidebar" aria-label={t('sidebar.inbox')}>
+      {/* Topo: Nome da App Kwrl + Seletor de Idioma Rápido */}
+      <div className="tinta-sidebar-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button
           type="button"
           className="tinta-brand-btn"
           onClick={() => void onSyncNow()}
-          title={isSyncing ? 'A sincronizar...' : 'Clique para sincronizar agora'}
+          title={isSyncing ? t('common.syncing') : `${t('common.syncNow')} (Kwrl)`}
         >
           <span className="tinta-sidebar-brand">Kwrl</span>
           {isSyncing && (
-            <span className="tinta-syncing-indicator" title="A sincronizar com o Gmail...">
+            <span className="tinta-syncing-indicator" title={t('common.syncing')}>
               •
             </span>
           )}
+        </button>
+
+        {/* Quick Language Toggle Pill */}
+        <button
+          type="button"
+          onClick={() => {
+            const nextMap: Record<string, 'en' | 'pt' | 'fr' | 'es'> = {
+              en: 'pt',
+              pt: 'fr',
+              fr: 'es',
+              es: 'en',
+            };
+            setLanguage(nextMap[language] || 'en');
+          }}
+          title={`${t('common.language')}: ${language.toUpperCase()} (Click to change)`}
+          style={{
+            background: 'var(--fill)',
+            border: '1px solid var(--line)',
+            borderRadius: '4px',
+            padding: '2px 6px',
+            fontSize: '10px',
+            fontWeight: 600,
+            color: 'var(--ink-secondary)',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+          }}
+        >
+          {language.toUpperCase()}
         </button>
       </div>
 
@@ -142,11 +193,11 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
           onMouseLeave={(e) => {
             e.currentTarget.style.borderColor = 'var(--color-border)';
           }}
-          title="Novo E-mail (C)"
+          title={`${t('sidebar.compose')} (C)`}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <IconEdit size={14} />
-            <span>Novo E-mail</span>
+            <span>{t('sidebar.compose')}</span>
           </div>
           <span
             style={{
@@ -164,7 +215,7 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
 
       {/* Secção 1: Caixas Padrão e Entrada Unificada */}
       <div className="tinta-sidebar-section">
-        <div className="tinta-sidebar-label">Caixas</div>
+        <div className="tinta-sidebar-label">{t('sidebar.inbox')}</div>
         <nav className="tinta-sidebar-nav" aria-label="Lista de caixas principais">
           {/* Caixa de Entrada Principal (Todas as Caixas se > 1 conta) */}
           <button
@@ -179,7 +230,7 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
               <IconInbox size={16} />
             </span>
             <span className="tinta-nav-label">
-              {isMultiAccount ? 'Todas as Caixas' : 'Entrada'}
+              {getBoxLabel('inbox')}
             </span>
             {(boxCounts['inbox'] ?? 0) > 0 && (
               <span className="tinta-nav-count">{boxCounts['inbox']}</span>
@@ -243,7 +294,7 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
                 >
                   <Icon size={16} />
                 </span>
-                <span className="tinta-nav-label">{box.label}</span>
+                <span className="tinta-nav-label">{getBoxLabel(box.id)}</span>
                 {count > 0 && <span className="tinta-nav-count">{count}</span>}
               </button>
             );
@@ -261,7 +312,7 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
             paddingRight: '6px',
           }}
         >
-          <div className="tinta-sidebar-label">As Minhas Caixas</div>
+          <div className="tinta-sidebar-label">{t('sidebar.customViews')}</div>
           <button
             type="button"
             onClick={onCreateCustomMailbox}
@@ -285,8 +336,8 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
               e.currentTarget.style.color = 'var(--mute)';
               e.currentTarget.style.backgroundColor = 'transparent';
             }}
-            title="Criar nova caixa de e-mail personalizada"
-            aria-label="Criar nova caixa de e-mail"
+            title={t('sidebar.newCustomView')}
+            aria-label={t('sidebar.newCustomView')}
           >
             <IconPlus size={12} />
           </button>
@@ -383,7 +434,7 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
               padding: '2px 6px',
             }}
           >
-            CONTAS LIGADAS ({accounts.length})
+            {t('sidebar.accounts').toUpperCase()} ({accounts.length})
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
@@ -439,7 +490,7 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
             }}
           >
             <IconPlus size={12} />
-            <span>+ Adicionar conta Gmail</span>
+            <span>+ {t('sidebar.addAccount')}</span>
           </button>
         </div>
       )}
@@ -450,12 +501,12 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
           className="tinta-sidebar-user-block"
           style={{ cursor: 'pointer' }}
           onClick={() => setAccountMenuOpen(!accountMenuOpen)}
-          title="Clique para gerir contas ou adicionar outra conta Gmail"
+          title={t('sidebar.accounts')}
         >
           <div className="tinta-avatar-sidebar">{initials}</div>
           <div className="tinta-sidebar-user-info">
             <span className="tinta-sidebar-user-name" title={userName || userEmail}>
-              {isMultiAccount ? `${accounts.length} contas ligadas` : (userName || userEmail.split('@')[0])}
+              {isMultiAccount ? `${accounts.length} ${t('sidebar.accounts').toLowerCase()}` : (userName || userEmail.split('@')[0])}
             </span>
             <span className="tinta-sidebar-user-email" title={userEmail}>
               {userEmail}
@@ -467,8 +518,8 @@ export const SidebarViews: React.FC<SidebarViewsProps> = ({
           type="button"
           className="tinta-sidebar-settings-btn"
           onClick={onOpenSettings}
-          title="Definições e Privacidade"
-          aria-label="Definições e Privacidade"
+          title={t('sidebar.settings')}
+          aria-label={t('sidebar.settings')}
         >
           <IconSliders size={15} />
         </button>

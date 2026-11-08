@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { openExternalUrl, resolveFriendlyModelName } from '../services/tauriBridge';
 import { AccountView, DiscoveredModel, LocalModelStatus } from '../types/kwrl';
 import { IconCheck, IconClose, IconPlus } from './Icons';
+import { SUPPORTED_LANGUAGES, useI18n } from '../i18n';
 
 interface PrivacySettingsDrawerProps {
   open: boolean;
@@ -53,6 +54,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
   onAddAccount,
   onSaveCredentials,
 }) => {
+  const { language, setLanguage, t } = useI18n();
   const [pollSecs, setPollSecs] = useState(pollIntervalSecs);
   const [aiActive, setAiActive] = useState(!masterAiKillSwitch);
   const [sigName, setSigName] = useState(userSignatureName);
@@ -99,7 +101,9 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
         ollamaModelTag: modelStatus.ollamaModelTag,
       });
       flashSaved(
-        nextActive ? 'Assistente de escrita ativado.' : 'Assistente de escrita desligado.'
+        nextActive
+          ? t('settings.aiKillSwitch') + ': ' + t('common.active')
+          : t('settings.aiKillSwitch') + ': ' + t('common.inactive')
       );
     } catch (err) {
       setFeedbackError(err instanceof Error ? err.message : String(err));
@@ -117,7 +121,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
         allowOllamaFallback: modelStatus.allowOllamaFallback,
         ollamaModelTag: modelStatus.ollamaModelTag,
       });
-      flashSaved('Frequência de atualização guardada.');
+      flashSaved(t('common.saved'));
     } catch (err) {
       setFeedbackError(err instanceof Error ? err.message : String(err));
     }
@@ -130,7 +134,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
     try {
       if (onUpdateSignatureName) {
         await onUpdateSignatureName(trimmed);
-        flashSaved(`Nome de assinatura atualizado para "${trimmed}".`);
+        flashSaved(t('common.saved') + `: "${trimmed}"`);
       }
     } catch (err) {
       setFeedbackError(err instanceof Error ? err.message : String(err));
@@ -154,7 +158,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
       setRawOauthInput('');
       setOauthSecretInput('');
       setShowOauthForm(false);
-      flashSaved('Chaves Google Cloud atualizadas com sucesso no Keychain!');
+      flashSaved(t('common.saved'));
     } catch (err) {
       setOauthError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -167,7 +171,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
       className="settings-backdrop"
       role="dialog"
       aria-modal="true"
-      aria-label="IA Privada e Contas"
+      aria-label={t('settings.title')}
       onClick={onClose}
     >
       <div className="settings-sheet" onClick={(e) => e.stopPropagation()}>
@@ -181,9 +185,9 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
           }}
         >
           <div>
-            <span className="type-kicker">Privacidade & Preferências</span>
+            <span className="type-kicker">Kwrl Mail</span>
             <h2 className="type-view-title" style={{ marginTop: '4px' }}>
-              IA Privada & Contas
+              {t('settings.title')}
             </h2>
             <p
               style={{
@@ -193,15 +197,14 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                 lineHeight: 1.45,
               }}
             >
-              O Kwrl inclui o seu próprio motor privado de escrita em português. Tudo
-              corre localmente no teu computador, sem enviar e-mails para terceiros.
+              {t('settings.desc')}
             </p>
           </div>
           <button
             type="button"
             className="quiet-btn"
             onClick={onClose}
-            aria-label="Fechar definições"
+            aria-label={t('common.close')}
           >
             <IconClose size={14} />
           </button>
@@ -228,9 +231,85 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
           </div>
         )}
 
+        {/* Secção 0: Idioma da Interface */}
+        <section style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <span className="type-kicker">{t('settings.languageSection')}</span>
+          <p
+            style={{
+              margin: '0 0 6px 0',
+              fontSize: '0.8rem',
+              color: 'var(--ink-secondary)',
+              lineHeight: 1.4,
+            }}
+          >
+            {t('settings.languageDesc')}
+          </p>
+          <div
+            style={{
+              display: 'flex',
+              gap: '6px',
+              flexWrap: 'wrap',
+            }}
+          >
+            {SUPPORTED_LANGUAGES.map((lang) => {
+              const isCurrent = language === lang.code;
+              return (
+                <button
+                  key={lang.code}
+                  type="button"
+                  onClick={() => setLanguage(lang.code)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    fontSize: '0.8rem',
+                    fontWeight: isCurrent ? 600 : 400,
+                    cursor: 'pointer',
+                    border: isCurrent
+                      ? '1px solid var(--color-accent, #a78bfa)'
+                      : '1px solid var(--line)',
+                    backgroundColor: isCurrent
+                      ? 'rgba(167, 139, 250, 0.16)'
+                      : 'var(--fill)',
+                    color: isCurrent ? 'var(--ink)' : 'var(--mute)',
+                    transition: 'all 120ms ease-out',
+                  }}
+                >
+                  <span style={{ fontSize: '14px' }}>{lang.flag}</span>
+                  <span>{lang.nativeName}</span>
+                  {lang.code === 'en' && (
+                    <span
+                      style={{
+                        fontSize: '9.5px',
+                        padding: '1px 4px',
+                        borderRadius: '3px',
+                        backgroundColor: 'var(--line)',
+                        color: 'var(--faint)',
+                        marginLeft: '2px',
+                      }}
+                    >
+                      Default
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
         {/* Secção 1: Motor Único Oficial do Kwrl (Zero configuração manual) */}
-        <section style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <span className="type-kicker">1. Motor de IA Integrado</span>
+        <section
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+            borderTop: '1px solid var(--hairline)',
+            paddingTop: 'var(--space-4)',
+          }}
+        >
+          <span className="type-kicker">{t('settings.aiSection')}</span>
 
           <div
             style={{
@@ -267,18 +346,17 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                   }}
                 >
                   {modelStatus.configured
-                    ? 'Instalado neste computador · rápido e 100% offline'
+                    ? t('aiPanel.modelReady')
                     : isBootstrapping
-                      ? `A preparar automaticamente no primeiro arranque (${modelStatus.bootstrapPercent ?? 0}%)…`
-                      : modelStatus.bootstrapError ??
-                        'A aguardar ligação à internet para concluir a instalação única.'}
+                      ? t('aiPanel.firstLaunchPrep') + ` (${modelStatus.bootstrapPercent ?? 0}%)…`
+                      : modelStatus.bootstrapError ?? t('aiPanel.connectInternetNotice')}
                 </div>
               </div>
 
               {modelStatus.configured ? (
                 <span className="ai-badge-transparent" style={{ flexShrink: 0 }}>
                   <IconCheck size={12} />
-                  <span>Ativo</span>
+                  <span>{t('common.active')}</span>
                 </span>
               ) : !isBootstrapping ? (
                 <button
@@ -286,7 +364,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                   className="quiet-btn quiet-btn--active"
                   onClick={() => void onInstallRecommendedModel()}
                 >
-                  Tentar novamente
+                  {t('aiPanel.retry')}
                 </button>
               ) : null}
             </div>
@@ -324,10 +402,10 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
             paddingTop: 'var(--space-4)',
           }}
         >
-          <span className="type-kicker">2. Preferências Gerais</span>
+          <span className="type-kicker">{t('settings.syncSection')}</span>
 
           <label className="setting-row" style={{ alignItems: 'center', cursor: 'pointer' }}>
-            <span>Ativar sugestões de escrita e resumos de conversa</span>
+            <span>{t('settings.aiKillSwitch')}</span>
             <input
               type="checkbox"
               checked={aiActive}
@@ -336,16 +414,16 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
           </label>
 
           <div className="setting-row" style={{ alignItems: 'center' }}>
-            <span>Procurar novos e-mails automaticamente</span>
+            <span>{t('settings.pollInterval')}</span>
             <select
               className="form-field-select"
               style={{ width: 'auto' }}
               value={pollSecs}
               onChange={(e) => void handleChangePollSecs(Number(e.target.value))}
             >
-              <option value={30}>A cada 30 segundos</option>
-              <option value={60}>A cada minuto</option>
-              <option value={90}>A cada minuto e meio</option>
+              <option value={30}>{t('settings.poll30')}</option>
+              <option value={60}>{t('settings.poll60')}</option>
+              <option value={90}>{t('settings.poll90')}</option>
             </select>
           </div>
 
@@ -358,12 +436,12 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
             }}
           >
             <div>
-              <div style={{ fontSize: '0.8125rem' }}>O teu nome para saudações e assinaturas</div>
+              <div style={{ fontSize: '0.8125rem' }}>{t('settings.userSignature')}</div>
               <div
                 className="type-mono-meta"
                 style={{ marginTop: '2px', color: 'var(--ink-secondary)' }}
               >
-                Usado pela IA para saudações calorosas e assinaturas (ex: "Um abraço,\n{sigName}").
+                {t('settings.sigNameHint', { name: sigName || '...' })}
               </div>
             </div>
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -382,7 +460,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') void handleSaveSignatureName();
                 }}
-                placeholder="Afonso"
+                placeholder={t('settings.userSignaturePlaceholder')}
               />
               <button
                 type="button"
@@ -390,7 +468,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                 style={{ fontSize: '0.75rem', padding: '3px 8px' }}
                 onClick={() => void handleSaveSignatureName()}
               >
-                Guardar
+                {t('common.save')}
               </button>
             </div>
           </div>
@@ -406,10 +484,10 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
             paddingTop: 'var(--space-4)',
           }}
         >
-          <span className="type-kicker">3. Contas Gmail Ligadas</span>
+          <span className="type-kicker">{t('settings.accountsSection')}</span>
 
           {accounts.length === 0 ? (
-            <span className="type-mono-meta">Nenhuma conta Gmail ligada ainda.</span>
+            <span className="type-mono-meta">{t('settings.noAccounts')}</span>
           ) : (
             accounts.map((acc) => (
               <div
@@ -436,8 +514,8 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                     </div>
                     <div className="type-mono-meta">
                       {acc.keychainSessionActive
-                        ? 'Sessão protegida no Porta-chaves do macOS'
-                        : 'Sessão expirada — volta a iniciar sessão'}
+                        ? t('settings.keychainActiveLabel')
+                        : t('settings.sessionExpiredLabel')}
                     </div>
                   </div>
 
@@ -446,7 +524,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                     className="quiet-btn"
                     onClick={() => void onDisconnectAccount(acc.email)}
                   >
-                    Desligar conta
+                    {t('settings.disconnectBtn')}
                   </button>
                 </div>
 
@@ -458,7 +536,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                     cursor: 'pointer',
                   }}
                 >
-                  <span>Permitir resumos e rascunhos nesta conta</span>
+                  <span>{t('settings.allowAiAccount')}</span>
                   <input
                     type="checkbox"
                     checked={acc.aiEnabled}
@@ -491,7 +569,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                 onClick={onAddAccount}
               >
                 <IconPlus size={13} />
-                <span>Associar Nova Conta Google / Gmail</span>
+                <span>{t('settings.addAccountBtn')}</span>
               </button>
             )}
           </div>
@@ -514,13 +592,13 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, color: 'var(--ink)' }}>
               <span>ℹ️</span>
-              <span>Microsoft 365, Outlook e IMAP</span>
+              <span>{t('settings.outlookNoticeTitle')}</span>
             </div>
             <div>
-              O Kwrl opera atualmente em exclusivo com contas <strong>Google / Gmail</strong> através do fluxo oficial <strong>OAuth 2.0 PKCE S256</strong> (RFC 8252) com permissões mínimas e sincronização local direta.
+              {t('settings.outlookNoticeDesc')}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--faint)' }}>
-              O suporte nativo a <strong>Microsoft 365 / Outlook</strong> (via Microsoft Graph API) e servidores <strong>IMAP</strong> está previsto para uma versão futura.
+              {t('settings.outlookNoticeFuture')}
             </div>
           </div>
         </section>
@@ -536,17 +614,17 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span className="type-kicker">4. Chaves Google Cloud (OAuth 2.0 / BYOK)</span>
+            <span className="type-kicker">{t('settings.oauthSection')}</span>
             {oauthClientId && oauthSecretInKeychain && (
               <span className="ai-badge-transparent">
                 <IconCheck size={12} />
-                <span>Ativo no Keychain</span>
+                <span>{t('settings.keychainActive')}</span>
               </span>
             )}
           </div>
 
           <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
-            O Kwrl adota o modelo <em>Bring Your Own Keys</em> (BYOK): cada utilizador utiliza a sua própria credencial gratuita do Google Cloud, eliminando intermediários, quotas partilhadas e custos de auditoria comercial.
+            {t('settings.byokExplainer')}
           </p>
 
           <div
@@ -563,12 +641,12 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <div style={{ fontSize: '0.8125rem', fontWeight: 600 }}>
-                  {oauthClientId ? 'ID de Cliente Configurado' : 'Nenhuma chave configurada'}
+                  {oauthClientId ? t('settings.oauthConfigured') : t('settings.oauthNoneConfigured')}
                 </div>
                 <div className="type-mono-meta" style={{ marginTop: '2px' }}>
                   {oauthClientId
                     ? `${oauthClientId.slice(0, 18)}…`
-                    : 'Configura uma chave para ligar contas Gmail'}
+                    : t('settings.oauthNoneConfigured')}
                 </div>
               </div>
 
@@ -578,7 +656,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                   className="quiet-btn"
                   onClick={() => setShowOauthForm(!showOauthForm)}
                 >
-                  {showOauthForm ? 'Fechar' : oauthClientId ? 'Substituir Chave' : 'Configurar Chave'}
+                  {showOauthForm ? t('common.close') : oauthClientId ? t('settings.replaceKey') : t('settings.setupKey')}
                 </button>
               )}
             </div>
@@ -602,7 +680,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                     style={{ padding: 0, fontSize: '0.75rem', textDecoration: 'underline' }}
                     onClick={() => void openExternalUrl('https://console.cloud.google.com/apis/library/gmail.googleapis.com')}
                   >
-                    1. Ativar Gmail API ↗
+                    {t('settings.step1GmailApi')}
                   </button>
                   <button
                     type="button"
@@ -610,7 +688,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                     style={{ padding: 0, fontSize: '0.75rem', textDecoration: 'underline' }}
                     onClick={() => void openExternalUrl('https://console.cloud.google.com/apis/credentials/consent')}
                   >
-                    2. Adicionar Utilizadores de Teste (Público-alvo) ↗
+                    {t('settings.step2Audience')}
                   </button>
                   <button
                     type="button"
@@ -618,7 +696,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                     style={{ padding: 0, fontSize: '0.75rem', textDecoration: 'underline' }}
                     onClick={() => void openExternalUrl('https://console.cloud.google.com/apis/credentials')}
                   >
-                    3. Criar Credencial Desktop app ↗
+                    {t('settings.step3DesktopApp')}
                   </button>
                 </div>
 
@@ -630,7 +708,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                     fontFamily: 'var(--font-mono)',
                     fontSize: '0.75rem',
                   }}
-                  placeholder='Cola aqui o conteúdo do ficheiro JSON descarregado da Google (ou apenas o Client ID)…'
+                  placeholder={t('settings.oauthInputPlaceholder')}
                   value={rawOauthInput}
                   onChange={(e) => setRawOauthInput(e.target.value)}
                 />
@@ -639,7 +717,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                   <input
                     type="password"
                     className="form-field-input"
-                    placeholder="Client Secret (ex: GOCSPX-...)"
+                    placeholder={t('settings.oauthSecretPlaceholder')}
                     value={oauthSecretInput}
                     onChange={(e) => setOauthSecretInput(e.target.value)}
                   />
@@ -662,7 +740,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                     }
                     style={{ padding: '6px 14px', fontSize: '0.78rem' }}
                   >
-                    {isSavingOauth ? 'A guardar no Keychain…' : 'Guardar no Keychain'}
+                    {isSavingOauth ? t('settings.savingKeychain') : t('settings.saveKeychainBtn')}
                   </button>
 
                   <button
@@ -670,7 +748,7 @@ export const PrivacySettingsDrawer: React.FC<PrivacySettingsDrawerProps> = ({
                     className="quiet-btn"
                     onClick={() => setShowOauthForm(false)}
                   >
-                    Cancelar
+                    {t('common.cancel')}
                   </button>
                 </div>
               </form>

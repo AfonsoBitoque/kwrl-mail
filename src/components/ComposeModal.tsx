@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useI18n } from '../i18n';
 import { getKnownContacts, rewriteTextWithAi } from '../services/tauriBridge';
 import { AccountView, EmailAttachment, KnownContact } from '../types/kwrl';
 import { IconClose, IconPaperclip, IconSent, IconSparkles } from './Icons';
@@ -45,6 +46,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
   onClose,
   onSend,
 }) => {
+  const { t } = useI18n();
   const [selectedAccountEmail, setSelectedAccountEmail] = useState<string>('');
   const [toChips, setToChips] = useState<string[]>([]);
   const [toInput, setToInput] = useState('');
@@ -424,7 +426,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
           }}
         >
           <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--ink)' }}>
-            {threadId ? 'Responder a conversa' : 'Novo E-mail'}
+            {threadId ? t('readingPane.reply') : t('compose.newDraft')}
           </span>
           <button
             type="button"
@@ -440,7 +442,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               display: 'flex',
               alignItems: 'center',
             }}
-            title="Fechar (Esc)"
+            title={`${t('common.close')} (Esc)`}
           >
             <IconClose size={16} />
           </button>
@@ -461,7 +463,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 backgroundColor: 'var(--bg)',
               }}
             >
-              <span style={{ color: 'var(--mute)', width: '45px' }}>De:</span>
+              <span style={{ color: 'var(--mute)', width: '45px' }}>{t('readingPane.from')}:</span>
               <select
                 value={selectedAccountEmail}
                 onChange={(e) => setSelectedAccountEmail(e.target.value)}
@@ -500,7 +502,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               zIndex: activeAutocompleteField === 'to' ? 60 : 10,
             }}
           >
-            <span style={{ color: 'var(--mute)', width: '45px' }}>Para:</span>
+            <span style={{ color: 'var(--mute)', width: '45px' }}>{t('compose.to')}:</span>
             {toChips.map((chip) => (
               <span
                 key={chip}
@@ -544,7 +546,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               onFocus={() => setActiveAutocompleteField('to')}
               onBlur={() => setTimeout(() => setActiveAutocompleteField(null), 200)}
               onKeyDown={(e) => handleKeyDownChip(e, 'to', toInput, toChips, setToChips)}
-              placeholder={toChips.length === 0 ? 'destinatario@exemplo.pt (escreve e prime Enter ou vírgula)' : ''}
+              placeholder={toChips.length === 0 ? t('compose.toPlaceholder') : ''}
               style={{
                 flex: 1,
                 minWidth: '160px',
@@ -659,7 +661,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 zIndex: activeAutocompleteField === 'cc' ? 60 : 9,
               }}
             >
-              <span style={{ color: 'var(--mute)', width: '45px' }}>Cc:</span>
+              <span style={{ color: 'var(--mute)', width: '45px' }}>{t('compose.cc')}:</span>
               {ccChips.map((chip) => (
                 <span
                   key={chip}
@@ -702,7 +704,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 onFocus={() => setActiveAutocompleteField('cc')}
                 onBlur={() => setTimeout(() => setActiveAutocompleteField(null), 200)}
                 onKeyDown={(e) => handleKeyDownChip(e, 'cc', ccInput, ccChips, setCcChips)}
-                placeholder={ccChips.length === 0 ? 'copia@exemplo.pt' : ''}
+                placeholder={ccChips.length === 0 ? 'copia@exemplo.com' : ''}
                 style={{
                   flex: 1,
                   minWidth: '140px',
@@ -781,7 +783,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 zIndex: activeAutocompleteField === 'bcc' ? 60 : 8,
               }}
             >
-              <span style={{ color: 'var(--mute)', width: '45px' }}>Bcc:</span>
+              <span style={{ color: 'var(--mute)', width: '45px' }}>{t('compose.bcc')}:</span>
               {bccChips.map((chip) => (
                 <span
                   key={chip}
@@ -824,7 +826,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 onFocus={() => setActiveAutocompleteField('bcc')}
                 onBlur={() => setTimeout(() => setActiveAutocompleteField(null), 200)}
                 onKeyDown={(e) => handleKeyDownChip(e, 'bcc', bccInput, bccChips, setBccChips)}
-                placeholder={bccChips.length === 0 ? 'copia.oculta@exemplo.pt' : ''}
+                placeholder={bccChips.length === 0 ? 'copia.oculta@exemplo.com' : ''}
                 style={{
                   flex: 1,
                   minWidth: '140px',
@@ -902,7 +904,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder="Assunto"
+              placeholder={t('compose.subject')}
               style={{
                 width: '100%',
                 border: 'none',
@@ -948,10 +950,10 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                   opacity: !body.trim() ? 0.6 : 1,
                   transition: 'background-color 0.15s ease',
                 }}
-                title={!body.trim() ? 'Escreve algo no corpo para usar a IA' : 'Melhora, organiza ou traduz o teu texto com o Motor IA'}
+                title={!body.trim() ? t('compose.bodyPlaceholder') : t('compose.aiAssist')}
               >
                 <IconSparkles size={13} />
-                <span>Assistente de IA</span>
+                <span>{t('compose.aiAssist')}</span>
               </button>
 
               {/* Botão de Anular alteração da IA */}
@@ -968,9 +970,9 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                     textDecoration: 'underline',
                     padding: '2px 4px',
                   }}
-                  title="Reverter texto para o original antes da IA"
+                  title={t('readingPane.revertAi')}
                 >
-                  Anular alteração
+                  {t('compose.undo')}
                 </button>
               )}
 
@@ -999,7 +1001,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                   }}
                 >
                   <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--faint)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    Revisão & Estrutura
+                    {t('compose.aiAssist')}
                   </div>
                   <button
                     type="button"
@@ -1019,8 +1021,8 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                   >
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>✨ Organizar e tirar erros</span>
-                    <span style={{ fontSize: '10.5px', color: 'var(--mute)' }}>Corrige ortografia, pontuação e cria parágrafos limpos em pt-PT</span>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>{t('compose.toneOrganize')}</span>
+                    <span style={{ fontSize: '10.5px', color: 'var(--mute)' }}>{t('compose.organizeDesc')}</span>
                   </button>
 
                   <button
@@ -1041,8 +1043,8 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                   >
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>👔 Tornar mais formal</span>
-                    <span style={{ fontSize: '10.5px', color: 'var(--mute)' }}>Tom executivo, polido e profissional</span>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>{t('compose.toneFormal')}</span>
+                    <span style={{ fontSize: '10.5px', color: 'var(--mute)' }}>{t('compose.formalDesc')}</span>
                   </button>
 
                   <button
@@ -1063,14 +1065,14 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                     onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                   >
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>⚡ Tornar mais curto e direto</span>
-                    <span style={{ fontSize: '10.5px', color: 'var(--mute)' }}>Remove redundâncias e foca o essencial</span>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--ink)' }}>{t('compose.toneShort')}</span>
+                    <span style={{ fontSize: '10.5px', color: 'var(--mute)' }}>{t('compose.shortDesc')}</span>
                   </button>
 
                   <div style={{ height: '1px', backgroundColor: 'var(--line)', margin: '4px 0' }} />
 
                   <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--faint)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                    Tradução
+                    {t('compose.toneTranslate')}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', padding: '0 4px' }}>
                     <button
@@ -1089,7 +1091,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                       onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
                       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg)')}
                     >
-                      🇬🇧 Inglês
+                      {t('compose.langEnglish')}
                     </button>
                     <button
                       type="button"
@@ -1107,7 +1109,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                       onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
                       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg)')}
                     >
-                      🇪🇸 Espanhol
+                      {t('compose.langSpanish')}
                     </button>
                     <button
                       type="button"
@@ -1125,7 +1127,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                       onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
                       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg)')}
                     >
-                      🇫🇷 Francês
+                      {t('compose.langFrench')}
                     </button>
                     <button
                       type="button"
@@ -1143,7 +1145,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                       onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
                       onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg)')}
                     >
-                      🇩🇪 Alemão
+                      {t('compose.langGerman')}
                     </button>
                   </div>
 
@@ -1173,7 +1175,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                   >
                     <span>✏️</span>
-                    <span>Pedir outra alteração personalizada...</span>
+                    <span>{t('compose.instructionCustom')}</span>
                   </button>
                 </div>
               )}
@@ -1219,7 +1221,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                     setCustomPromptOpen(false);
                   }
                 }}
-                placeholder="Ex: 'Muda o tom para mais amigável e diz que só posso reunir quinta-feira à tarde' (Enter para aplicar)"
+                placeholder={t('compose.instructionPlaceholder')}
                 style={{
                   flex: 1,
                   padding: '5px 10px',
@@ -1252,7 +1254,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                   opacity: !customPromptText.trim() ? 0.6 : 1,
                 }}
               >
-                Aplicar
+                {t('compose.customPromptApply')}
               </button>
               <button
                 type="button"
@@ -1265,7 +1267,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                   fontSize: '11.5px',
                 }}
               >
-                Cancelar
+                {t('common.cancel')}
               </button>
             </div>
           )}
@@ -1277,7 +1279,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
               value={body}
               onChange={(e) => setBody(e.target.value)}
               onPaste={handlePaste}
-              placeholder="Escreve a tua mensagem aqui... Podes escrever tópicos soltos ou ideias e usar o Assistente de IA acima para organizar o texto e tirar erros."
+              placeholder={t('compose.bodyPlaceholder')}
               disabled={isAiProcessing}
               style={{
                 flex: 1,
@@ -1313,7 +1315,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                   zIndex: 30,
                 }}
               >
-                Larga os ficheiros aqui para anexar
+                + {t('compose.attachFiles')}
               </div>
             )}
           </div>
@@ -1402,10 +1404,10 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                   fontSize: '12px',
                   cursor: 'pointer',
                 }}
-                title="Anexar ficheiros"
+                title={t('compose.attachFiles')}
               >
                 <IconPaperclip size={14} />
-                <span>Anexar</span>
+                <span>{t('compose.attachFiles')}</span>
               </button>
             </div>
 
@@ -1424,7 +1426,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                   cursor: 'pointer',
                 }}
               >
-                Descartar
+                {t('compose.discardDraft')}
               </button>
               <button
                 type="submit"
@@ -1445,7 +1447,7 @@ export const ComposeModal: React.FC<ComposeModalProps> = ({
                 }}
               >
                 <IconSent size={13} />
-                <span>{isSending ? 'A enviar...' : 'Enviar'}</span>
+                <span>{isSending ? t('compose.sending') : t('compose.send')}</span>
               </button>
             </div>
           </div>

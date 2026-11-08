@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useI18n } from '../i18n';
 import {
   ExtractedDocument,
   extractTextFromFile,
@@ -44,47 +45,6 @@ interface CalmAIPanelProps {
   onAttachFileToDraft?: (attachment: EmailAttachment) => void;
 }
 
-const TIER_TABS: { id: CDLRTier; label: string; subtitle: string }[] = [
-  {
-    id: 'frase',
-    label: 'Frase',
-    subtitle: 'Sugere a próxima frase direta para responder.',
-  },
-  {
-    id: 'rascunho-curto',
-    label: 'Rascunho curto',
-    subtitle: '1 a 3 frases concisas prontas a rever e editar.',
-  },
-  {
-    id: 'rascunho-estruturado',
-    label: 'Estruturado',
-    subtitle: 'Resposta completa organizada por pontos-chave.',
-  },
-];
-
-const QUICK_CHIPS: { label: string; context: string; tier: CDLRTier }[] = [
-  {
-    label: 'Confirmar',
-    context: 'Confirmar disponibilidade e total acordo com a mensagem recebida.',
-    tier: 'rascunho-curto',
-  },
-  {
-    label: 'Pedir mais tempo',
-    context: 'Agradecer a mensagem, explicar com simpatia que preciso de tempo para analisar o assunto e que voltarei ao contacto nos próximos dias com uma resposta.',
-    tier: 'rascunho-curto',
-  },
-  {
-    label: 'Recusar cordialmente',
-    context: 'Agradecer a mensagem mas recusar cordialmente por indisponibilidade neste momento.',
-    tier: 'rascunho-estruturado',
-  },
-  {
-    label: 'Agradecer',
-    context: 'Agradecer a atenção e desejar uma excelente semana.',
-    tier: 'frase',
-  },
-];
-
 interface GeneratedSlot {
   requestId?: string;
   text: string;
@@ -113,6 +73,49 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
   onClose,
   onAttachFileToDraft,
 }) => {
+  const { t } = useI18n();
+
+  const tierTabs: { id: CDLRTier; label: string; subtitle: string }[] = useMemo(() => [
+    {
+      id: 'frase',
+      label: t('aiPanel.cdlrOneSentence'),
+      subtitle: t('aiPanel.cdlrOneSentence'),
+    },
+    {
+      id: 'rascunho-curto',
+      label: t('aiPanel.cdlrShortDraft'),
+      subtitle: t('aiPanel.cdlrShortDraft'),
+    },
+    {
+      id: 'rascunho-estruturado',
+      label: t('aiPanel.cdlrStructured'),
+      subtitle: t('aiPanel.cdlrStructured'),
+    },
+  ], [t]);
+
+  const quickChips: { label: string; context: string; tier: CDLRTier }[] = useMemo(() => [
+    {
+      label: t('aiPanel.chipConfirm'),
+      context: t('aiPanel.chipConfirmDesc'),
+      tier: 'rascunho-curto',
+    },
+    {
+      label: t('aiPanel.chipMoreTime'),
+      context: t('aiPanel.chipMoreTimeDesc'),
+      tier: 'rascunho-curto',
+    },
+    {
+      label: t('aiPanel.chipDecline'),
+      context: t('aiPanel.chipDeclineDesc'),
+      tier: 'rascunho-estruturado',
+    },
+    {
+      label: t('aiPanel.chipThanks'),
+      context: t('aiPanel.chipThanksDesc'),
+      tier: 'frase',
+    },
+  ], [t]);
+
   const [internalTier, setInternalTier] = useState<CDLRTier>('rascunho-curto');
   const currentTier = propActiveTier ?? internalTier;
   const [slots, setSlots] = useState<Record<string, GeneratedSlot>>({});
@@ -300,24 +303,24 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
   };
 
   if (!thread) {
-    return <aside className="corvo-ai-margin" aria-label="Assistente de IA" />;
+    return <aside className="corvo-ai-margin" aria-label={t('aiPanel.title')} />;
   }
 
   // Bloqueio 1: Interruptor global ou política da conta
   if (masterAiKillSwitch || (account && !account.aiEnabled)) {
     return (
-      <aside className="corvo-ai-margin" aria-label="Assistente de IA">
+      <aside className="corvo-ai-margin" aria-label={t('aiPanel.title')}>
         <header className="ai-margin-header">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>
-              Assistente de IA
+              {t('aiPanel.title')}
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <button
                 type="button"
                 className="tinta-toolbar-btn"
                 onClick={onOpenSettings}
-                title="Definições e Privacidade"
+                title={t('sidebar.settings')}
               >
                 <IconSliders size={14} />
               </button>
@@ -326,20 +329,20 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                   type="button"
                   className="tinta-toolbar-btn"
                   onClick={onClose}
-                  title="Fechar painel (⌘J)"
+                  title={`${t('common.close')} (⌘J)`}
                 >
                   <IconClose size={14} />
                 </button>
               )}
             </div>
           </div>
-          <span style={{ fontSize: '11px', color: 'var(--mute)' }}>DESATIVADO</span>
+          <span style={{ fontSize: '11px', color: 'var(--mute)' }}>{t('common.inactive').toUpperCase()}</span>
         </header>
         <div className="ai-margin-section">
           <p style={{ margin: 0, fontSize: '12px', color: 'var(--mute)', lineHeight: 1.5 }}>
             {masterAiKillSwitch
-              ? 'As sugestões de escrita e os resumos estão desligados nas preferências.'
-              : `As sugestões de IA estão desligadas para a conta ${thread.accountEmail}.`}
+              ? t('aiPanel.disabledNotice')
+              : `${t('aiPanel.disabledNotice')} (${thread.accountEmail})`}
           </p>
           <button
             type="button"
@@ -347,7 +350,7 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
             style={{ alignSelf: 'flex-start', marginTop: '8px' }}
             onClick={onOpenSettings}
           >
-            Abrir preferências
+            {t('aiPanel.openSettings')}
           </button>
         </div>
       </aside>
@@ -357,29 +360,28 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
   // Bloqueio 2: Injeção de Prompt detetada
   if (injectionInspection?.blocked) {
     return (
-      <aside className="corvo-ai-margin" aria-label="Assistente de IA">
+      <aside className="corvo-ai-margin" aria-label={t('aiPanel.title')}>
         <header className="ai-margin-header">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>
-              Proteção de Segurança
+              {t('aiPanel.securityProtection')}
             </span>
             {onClose && (
               <button
                 type="button"
                 className="tinta-toolbar-btn"
                 onClick={onClose}
-                title="Fechar painel (⌘J)"
+                title={`${t('common.close')} (⌘J)`}
               >
                 <IconClose size={14} />
               </button>
             )}
           </div>
-          <span style={{ fontSize: '11px', color: 'var(--acc)' }}>BLOQUEADO</span>
+          <span style={{ fontSize: '11px', color: 'var(--acc)' }}>{t('common.inactive').toUpperCase()}</span>
         </header>
         <div className="ai-margin-section">
           <p style={{ margin: 0, fontSize: '12.5px', lineHeight: 1.55, color: 'var(--ink)' }}>
-            {injectionInspection.userWarning ??
-              'Este e-mail contém padrões suspeitos de injeção de prompt. O assistente foi suspenso nesta mensagem por salvaguarda.'}
+            {injectionInspection.userWarning ?? t('aiPanel.injectionBlocked')}
           </p>
         </div>
       </aside>
@@ -393,23 +395,23 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
       modelStatus.bootstrapPhase === 'verifying');
   const friendlyModel = resolveFriendlyModelName(modelStatus, availableModels);
   const tierSlot = slots[`${thread.id}::${currentTier}`];
-  const activeTabMeta = TIER_TABS.find((t) => t.id === currentTier)!;
+  const activeTabMeta = tierTabs.find((t) => t.id === currentTier) || tierTabs[1];
 
   return (
-    <aside className="corvo-ai-margin" aria-label="Assistente de Escrita Lateral">
+    <aside className="corvo-ai-margin" aria-label={t('aiPanel.title')}>
       {/* Cabeçalho do Painel Lateral */}
       <header className="ai-margin-header">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--ink)' }}>
-            Assistente de Escrita
+            {t('aiPanel.title')}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <button
               type="button"
               className="tinta-toolbar-btn"
               onClick={onOpenSettings}
-              title="Definições e Privacidade"
-              aria-label="Definições e Privacidade"
+              title={t('sidebar.settings')}
+              aria-label={t('sidebar.settings')}
             >
               <IconSliders size={14} />
             </button>
@@ -418,8 +420,8 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                 type="button"
                 className="tinta-toolbar-btn"
                 onClick={onClose}
-                title="Fechar painel (⌘J)"
-                aria-label="Fechar painel"
+                title={`${t('common.close')} (⌘J)`}
+                aria-label={t('common.close')}
               >
                 <IconClose size={14} />
               </button>
@@ -431,10 +433,10 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
           <span style={{ color: runtimeReady ? 'var(--acc)' : 'var(--faint)', fontSize: '14px', lineHeight: 1 }}>•</span>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {runtimeReady
-              ? `No teu Mac · ${friendlyModel}`
+              ? t('aiPanel.onYourComputer', { model: friendlyModel })
               : isBootstrapping
-                ? `A preparar ${friendlyModel} · ${modelStatus.bootstrapPercent ?? 0}%`
-                : 'A preparar assistente local'}
+                ? `${t('aiPanel.firstLaunchPrep')} (${modelStatus.bootstrapPercent ?? 0}%)`
+                : t('aiPanel.connectInternetNotice')}
           </span>
         </div>
       </header>
@@ -444,9 +446,7 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
           {isBootstrapping ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <p style={{ margin: 0, fontSize: '12px', color: 'var(--mute)' }}>
-                {modelStatus.bootstrapPhase === 'verifying'
-                  ? 'A verificar o Motor Kwrl local…'
-                  : 'Primeira abertura: a preparar o Motor Kwrl neste computador para funcionar sempre offline.'}
+                {t('aiPanel.firstLaunchPrep')}
               </p>
               <div
                 style={{
@@ -467,14 +467,13 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                 />
               </div>
               <span className="tinta-meta-faint">
-                {modelStatus.bootstrapPercent ?? 0}% concluído
+                {t('aiPanel.percentCompleted', { percent: modelStatus.bootstrapPercent ?? 0 })}
               </span>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <p style={{ margin: 0, fontSize: '12px', color: 'var(--mute)' }}>
-                {modelStatus.bootstrapError ??
-                  'Liga-te à internet uma vez para descarregar o motor de IA local.'}
+                {modelStatus.bootstrapError ?? t('aiPanel.connectInternetNotice')}
               </p>
               <button
                 type="button"
@@ -484,7 +483,7 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                   void installRecommendedModel().then(() => onRefreshModelStatus());
                 }}
               >
-                Tentar novamente
+                {t('aiPanel.retry')}
               </button>
             </div>
           )}
@@ -494,16 +493,16 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
           {/* Sugestões de Resposta com Abas CDLR */}
           <section className="ai-margin-section" style={{ borderBottom: 'none' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span className="tinta-card-label">Sugestão de Resposta</span>
+              <span className="tinta-card-label">{t('aiPanel.suggestedReply')}</span>
               {tierSlot?.streaming && (
                 <span className="tinta-time" style={{ fontSize: '11px' }}>
-                  A gerar…
+                  {t('aiPanel.generating')}
                 </span>
               )}
             </div>
 
             <div className="cdlr-tier-tabs" role="tablist">
-              {TIER_TABS.map((tab) => {
+              {tierTabs.map((tab) => {
                 const isActive = currentTier === tab.id;
                 return (
                   <button
@@ -530,7 +529,7 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                 Respostas rápidas
               </span>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {QUICK_CHIPS.map((chip) => (
+                {quickChips.map((chip) => (
                   <button
                     key={chip.label}
                     type="button"
@@ -541,7 +540,7 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                       handleSelectTier(chip.tier);
                       void triggerGeneration(thread.id, chip.tier, chip.context);
                     }}
-                    title={`Gerar: ${chip.label}`}
+                    title={chip.label}
                   >
                     {chip.label}
                   </button>
@@ -553,7 +552,7 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
             <div style={{ margin: '8px 0 6px 0', display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ink)' }}>
-                  Instruir a IA / Ponto de vista
+                  {t('aiPanel.title')}
                 </span>
                 {activeUserContext && (
                   <button
@@ -567,9 +566,9 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                       padding: 0,
                     }}
                     onClick={() => handleUserContextChange('')}
-                    title="Limpar instruções"
+                    title={t('common.cancel')}
                   >
-                    Limpar
+                    {t('common.cancel')}
                   </button>
                 )}
               </div>
@@ -595,7 +594,7 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                       }
                     }
                   }}
-                  placeholder="Instruir a IA ou definir ponto de vista (Enter para gerar)…"
+                  placeholder={t('aiPanel.perspectivePlaceholder')}
                   rows={2}
                   style={{
                     width: '100%',
@@ -623,8 +622,8 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                       void triggerGeneration(thread.id, currentTier);
                     }
                   }}
-                  title="Gerar resposta com estas instruções (Enter)"
-                  aria-label="Gerar resposta"
+                  title={t('aiPanel.generate')}
+                  aria-label={t('aiPanel.generate')}
                   style={{
                     position: 'absolute',
                     right: '6px',
@@ -633,15 +632,6 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                 >
                   <IconArrowUp size={14} />
                 </button>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10.5px', color: 'var(--faint)' }}>
-                <span>
-                  {activeUserContext.trim()
-                    ? 'A IA vai adaptar a resposta às tuas instruções.'
-                    : 'Opcional. Sem instruções, a IA responde de acordo com o e-mail.'}
-                </span>
-                <span>Enter para gerar</span>
               </div>
             </div>
 
@@ -658,7 +648,7 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--faint)' }}>
-                  PDF / Documento de contexto
+                  {t('aiPanel.addContextDoc')}
                 </span>
                 <button
                   type="button"
@@ -668,7 +658,7 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                   disabled={isParsingDoc}
                 >
                   <IconPaperclip size={12} />
-                  <span>{isParsingDoc ? 'A ler ficheiro…' : '+ Inserir PDF'}</span>
+                  <span>{isParsingDoc ? t('common.loading') : `+ ${t('compose.attachFiles')}`}</span>
                 </button>
               </div>
 
@@ -694,7 +684,7 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                             type="button"
                             className="tinta-attachment-pill-remove"
                             onClick={() => handleRemoveContextDoc(idx)}
-                            title="Remover documento de contexto"
+                            title={t('readingPane.removeAttachment')}
                           >
                             <IconClose size={12} />
                           </button>
@@ -707,7 +697,7 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                           style={{ fontSize: '10.5px', color: 'var(--acc)', cursor: 'pointer' }}
                           onClick={() => setPreviewDocIdx(previewDocIdx === idx ? null : idx)}
                         >
-                          {previewDocIdx === idx ? 'Ocultar excerto' : 'Ver excerto lido'}
+                          {previewDocIdx === idx ? t('common.close') : t('common.ready')}
                         </button>
                         {onAttachFileToDraft && doc.originalFile && (
                           <button
@@ -723,7 +713,7 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                               });
                             }}
                           >
-                            + Anexar ao e-mail
+                            + {t('compose.attachFiles')}
                           </button>
                         )}
                       </div>
@@ -761,12 +751,12 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                 onClick={() => triggerGeneration(thread.id, currentTier)}
               >
                 {tierSlot?.streaming
-                  ? 'A escrever no teu Mac…'
+                  ? t('aiPanel.generating')
                   : activeUserContext.trim()
-                    ? `Sugerir ${activeTabMeta.label.toLowerCase()} com o teu ponto de vista`
+                    ? `${t('aiPanel.generate')} (${activeTabMeta.label})`
                     : tierSlot?.text
-                      ? 'Gerar outra versão'
-                      : `Sugerir ${activeTabMeta.label.toLowerCase()}`}
+                      ? `${t('aiPanel.generate')} (2)`
+                      : t('aiPanel.generate')}
               </button>
 
               {tierSlot?.error && (
@@ -790,7 +780,7 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                           onApplyGeneratedText(tierSlot.text, currentTier, 'replace')
                         }
                       >
-                        {hasExistingDraft ? 'Substituir no rascunho' : 'Inserir no rascunho'}
+                        {t('aiPanel.insertInReply')}
                       </button>
 
                       {hasExistingDraft && (
@@ -801,7 +791,7 @@ export const CalmAIPanel: React.FC<CalmAIPanelProps> = ({
                             onApplyGeneratedText(tierSlot.text, currentTier, 'append')
                           }
                         >
-                          + Acrescentar
+                          + {t('aiPanel.insertInReply')}
                         </button>
                       )}
                     </div>

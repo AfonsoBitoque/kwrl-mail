@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { GmailScopeMode } from '../types/kwrl';
 import { IconCheck, IconGoogleMark, KwrlMark } from './Icons';
 import { openExternalUrl } from '../services/tauriBridge';
+import { SUPPORTED_LANGUAGES, useI18n } from '../i18n';
 
 interface GmailOnboardingViewProps {
   savedClientId: string | null;
@@ -20,6 +21,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
   onSaveCredentials,
   onStartOAuth,
 }) => {
+  const { language, setLanguage, t } = useI18n();
   const [accountLabel, setAccountLabel] = useState('');
   const [scopeMode, setScopeMode] = useState<GmailScopeMode>('modify-and-labels');
   const [manualSetupOpen, setManualSetupOpen] = useState(false);
@@ -67,18 +69,69 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
   const isPastingJson = rawJsonOrId.trim().startsWith('{');
 
   return (
-    <main className="corvo-reading-pane" aria-label="Iniciar sessão com Google">
+    <main className="corvo-reading-pane" aria-label={t('onboarding.title')}>
       <article className="reading-article" style={{ maxWidth: '580px' }}>
         <header className="reading-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <KwrlMark size={20} />
-            <span className="type-kicker">Kwrl · Correio Local & Código Aberto</span>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '4px',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <KwrlMark size={20} />
+              <span className="type-kicker">{t('onboarding.kicker')}</span>
+            </div>
+
+            {/* Seletor rápido de idiomas */}
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '2px',
+                padding: '2px',
+                borderRadius: '6px',
+                backgroundColor: 'var(--surface-sunken)',
+                border: '1px solid var(--hairline)',
+              }}
+              role="group"
+              aria-label={t('common.language')}
+            >
+              {SUPPORTED_LANGUAGES.map((lang) => {
+                const isSelected = language === lang.code;
+                return (
+                  <button
+                    key={lang.code}
+                    type="button"
+                    onClick={() => setLanguage(lang.code)}
+                    style={{
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      border: 'none',
+                      backgroundColor: isSelected ? 'var(--surface-primary)' : 'transparent',
+                      color: isSelected ? 'var(--ink-primary)' : 'var(--ink-tertiary)',
+                      fontSize: '11px',
+                      fontWeight: isSelected ? 600 : 400,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '3px',
+                      boxShadow: isSelected ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                    }}
+                    title={lang.nativeName}
+                  >
+                    <span>{lang.flag}</span>
+                    <span style={{ textTransform: 'uppercase' }}>{lang.code}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <h1 className="type-thread-subject" style={{ marginTop: '10px' }}>
-            {showSetup
-              ? 'Configurar Credenciais do Gmail'
-              : 'Entra na tua conta Gmail'}
+            {showSetup ? t('onboarding.titleSetup') : t('onboarding.title')}
           </h1>
 
           <p
@@ -89,9 +142,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
               color: 'var(--ink-secondary)',
             }}
           >
-            {showSetup
-              ? 'O Kwrl é 100% privado, local e sem servidores intermédios. Para ligares o Gmail com total soberania e sem custos de auditoria comercial, utiliza a tua própria chave gratuita da Google Cloud.'
-              : 'Abre o início de sessão oficial da Google no teu browser habitual. Os teus e-mails ficam guardados localmente neste computador e a sessão protegida no Keychain do sistema.'}
+            {showSetup ? t('onboarding.descSetup') : t('onboarding.descDirect')}
           </p>
         </header>
 
@@ -123,7 +174,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span className="ai-badge-transparent">
                   <IconCheck size={12} />
-                  <span>Chave Própria Configurada</span>
+                  <span>{t('onboarding.credentialsReady')}</span>
                 </span>
                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem' }}>
                   {savedClientId ? `${savedClientId.slice(0, 12)}…` : ''}
@@ -135,7 +186,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                 style={{ fontSize: '0.75rem', padding: '2px 6px' }}
                 onClick={() => setManualSetupOpen(true)}
               >
-                Alterar
+                {t('onboarding.changeCredentials')}
               </button>
             </div>
 
@@ -154,8 +205,8 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                 <IconGoogleMark size={15} />
                 <span>
                   {isAuthenticating
-                    ? 'A aguardar confirmação no browser…'
-                    : 'Continuar com Google'}
+                    ? t('onboarding.waitingBrowser')
+                    : t('onboarding.continueGoogle')}
                 </span>
               </button>
             </div>
@@ -170,7 +221,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                   userSelect: 'none',
                 }}
               >
-                Opções opcionais (etiqueta da conta e permissões)
+                {t('onboarding.optionalOptions')}
               </summary>
 
               <div
@@ -191,12 +242,12 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                       marginBottom: '4px',
                     }}
                   >
-                    Nome na barra lateral (opcional)
+                    {t('onboarding.accountLabelHint')}
                   </label>
                   <input
                     type="text"
                     className="form-field-input"
-                    placeholder="Ex: Pessoal, Trabalho"
+                    placeholder={t('onboarding.accountLabelPlaceholder')}
                     value={accountLabel}
                     onChange={(e) => setAccountLabel(e.target.value)}
                   />
@@ -211,7 +262,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                       marginBottom: '4px',
                     }}
                   >
-                    Nível de acesso
+                    {t('onboarding.accessLevel')}
                   </label>
                   <select
                     className="form-field-select"
@@ -219,10 +270,10 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                     onChange={(e) => setScopeMode(e.target.value as GmailScopeMode)}
                   >
                     <option value="modify-and-labels">
-                      Padrão (ler e marcar como lido)
+                      {t('onboarding.accessDefault')}
                     </option>
                     <option value="read-only">
-                      Apenas leitura
+                      {t('onboarding.accessReadOnly')}
                     </option>
                   </select>
                 </div>
@@ -273,10 +324,10 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
               </div>
               <div style={{ flex: 1 }}>
                 <strong style={{ fontSize: '0.85rem', display: 'block', marginBottom: '4px' }}>
-                  Ativar a Gmail API na Google Cloud
+                  {t('onboarding.step1Title')}
                 </strong>
                 <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
-                  Acede à Google Cloud Console, cria um projeto gratuito (ex: <em>Kwrl Mail</em>) e clica em <strong>Ativar</strong> (Enable).
+                  {t('onboarding.step1Desc')}
                 </p>
                 <div style={{ marginTop: '8px' }}>
                   <button
@@ -285,7 +336,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                     style={{ fontSize: '0.78rem', textDecoration: 'underline' }}
                     onClick={() => void openExternalUrl('https://console.cloud.google.com/apis/library/gmail.googleapis.com')}
                   >
-                    1. Abrir Google Cloud Console ↗
+                    {t('onboarding.step1Button')}
                   </button>
                 </div>
               </div>
@@ -321,11 +372,10 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
               </div>
               <div style={{ flex: 1 }}>
                 <strong style={{ fontSize: '0.85rem', display: 'block', marginBottom: '4px' }}>
-                  Ecrã de Consentimento & Público-Alvo / Utilizadores de Teste (Obrigatório)
+                  {t('onboarding.step2Title')}
                 </strong>
                 <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
-                  No menu <strong>Ecrã de consentimento OAuth</strong> (*OAuth consent screen*), seleciona tipo <strong>Externo</strong> (*External*).<br />
-                  ⚠️ <strong>Passo Crítico:</strong> Na secção <strong>Público-alvo</strong> (*Audience*) ou <strong>Utilizadores de Teste</strong> (*Test users*), clica obrigatoriamente em <strong>&ldquo;+ Adicionar utilizadores&rdquo;</strong> e introduz todos os e-mails Gmail que vais usar no Kwrl. Se não adicionares o teu e-mail aqui, a Google bloqueará o acesso com <em>Erro 403 (access_denied)</em>.
+                  {t('onboarding.step2Desc')}
                 </p>
                 <div style={{ marginTop: '8px' }}>
                   <button
@@ -334,7 +384,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                     style={{ fontSize: '0.78rem', textDecoration: 'underline' }}
                     onClick={() => void openExternalUrl('https://console.cloud.google.com/apis/credentials/consent')}
                   >
-                    2. Configurar Ecrã de Consentimento & Utilizadores de Teste ↗
+                    {t('onboarding.step2Button')}
                   </button>
                 </div>
               </div>
@@ -370,10 +420,10 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
               </div>
               <div style={{ flex: 1 }}>
                 <strong style={{ fontSize: '0.85rem', display: 'block', marginBottom: '4px' }}>
-                  Criar Credencial &ldquo;Desktop app&rdquo; e Descarregar JSON
+                  {t('onboarding.step3Title')}
                 </strong>
                 <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
-                  Em <strong>Credenciais</strong> → <strong>+ Criar Credenciais</strong> → <strong>ID do cliente OAuth</strong>, escolhe o tipo <strong>Aplicação de Computador</strong> (Desktop app). Clica em <em>Criar</em> e depois no botão/ícone de <strong>Descarregar ficheiro JSON</strong>.
+                  {t('onboarding.step3Desc')}
                 </p>
                 <div style={{ marginTop: '8px' }}>
                   <button
@@ -382,7 +432,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                     style={{ fontSize: '0.78rem', textDecoration: 'underline' }}
                     onClick={() => void openExternalUrl('https://console.cloud.google.com/apis/credentials')}
                   >
-                    3. Abrir Ecrã de Credenciais ↗
+                    {t('onboarding.step3Button')}
                   </button>
                 </div>
               </div>
@@ -418,10 +468,10 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
               </div>
               <div style={{ flex: 1 }}>
                 <strong style={{ fontSize: '0.85rem', display: 'block', marginBottom: '4px' }}>
-                  Colar o ficheiro JSON descarregado
+                  {t('onboarding.step4Title')}
                 </strong>
                 <p style={{ margin: '0 0 8px 0', fontSize: '0.8rem', color: 'var(--ink-secondary)', lineHeight: 1.5 }}>
-                  Abre o ficheiro JSON descarregado num editor de texto (começa por <code>&#123;&quot;installed&quot;: ...&#125;</code>), copia todo o conteúdo e cola aqui:
+                  {t('onboarding.step4Desc')}
                 </p>
 
                 <form
@@ -437,7 +487,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                       fontSize: '0.75rem',
                       lineHeight: 1.4,
                     }}
-                    placeholder='Cola aqui o JSON da Google (começa por { "installed": ... }) ou o Client ID…'
+                    placeholder={t('onboarding.jsonPlaceholder')}
                     value={rawJsonOrId}
                     onChange={(e) => setRawJsonOrId(e.target.value)}
                   />
@@ -446,7 +496,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                     <input
                       type="password"
                       className="form-field-input"
-                      placeholder="Client Secret (ex: GOCSPX-...)"
+                      placeholder={t('settings.oauthSecretPlaceholder')}
                       value={clientSecret}
                       onChange={(e) => setClientSecret(e.target.value)}
                     />
@@ -466,8 +516,8 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                       <IconCheck size={14} />
                       <span>
                         {savingAndStarting
-                          ? 'A guardar e a ligar…'
-                          : 'Guardar e Continuar com Google'}
+                          ? t('onboarding.savingAndConnecting')
+                          : t('onboarding.saveAndContinue')}
                       </span>
                     </button>
 
@@ -477,7 +527,7 @@ export const GmailOnboardingView: React.FC<GmailOnboardingViewProps> = ({
                         className="quiet-btn"
                         onClick={() => setManualSetupOpen(false)}
                       >
-                        Cancelar
+                        {t('common.cancel')}
                       </button>
                     )}
                   </div>

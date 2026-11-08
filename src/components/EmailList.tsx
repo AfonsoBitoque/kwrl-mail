@@ -1,6 +1,7 @@
 import React, { RefObject, useMemo } from 'react';
 import { ThreadListItem } from '../types/kwrl';
 import { IconFlag, IconSearch } from './Icons';
+import { useI18n } from '../i18n';
 
 export type TintaFilterMode = 'all' | 'unread' | 'starred' | 'attachments';
 
@@ -54,6 +55,7 @@ const ThreadCard = React.memo<ThreadCardProps>(({
   onSelectThread,
   onToggleSelectThread,
 }) => {
+  const { t } = useI18n();
   const initials = useMemo(
     () => getInitials(thread.fromName, thread.fromEmail),
     [thread.fromName, thread.fromEmail]
@@ -102,7 +104,7 @@ const ThreadCard = React.memo<ThreadCardProps>(({
               onClick={(e) => {
                 e.stopPropagation();
               }}
-              aria-label={`Selecionar conversa de ${thread.fromName || thread.fromEmail}`}
+              aria-label={`${t('emailList.selectAll')} ${thread.fromName || thread.fromEmail}`}
               style={{
                 cursor: 'pointer',
                 accentColor: 'var(--color-accent, #a78bfa)',
@@ -152,7 +154,7 @@ const ThreadCard = React.memo<ThreadCardProps>(({
                     maxWidth: '85px',
                     lineHeight: '14px',
                   }}
-                  title={`Recebido em: ${thread.accountEmail}`}
+                  title={thread.accountEmail}
                 >
                   {thread.accountLabel || thread.accountEmail.split('@')[0]}
                 </span>
@@ -172,7 +174,7 @@ const ThreadCard = React.memo<ThreadCardProps>(({
                 isSelected ? 'tinta-subject-list--selected' : ''
               }`}
             >
-              {thread.subject || '(sem assunto)'}
+              {thread.subject || t('emailList.noSubject')}
             </span>
             <span className="tinta-thread-badges">
               {isStarred && (
@@ -180,7 +182,7 @@ const ThreadCard = React.memo<ThreadCardProps>(({
                   className={`tinta-flag-badge ${
                     isSelected ? 'tinta-flag-badge--selected' : ''
                   }`}
-                  title="Marcada"
+                  title={t('emailList.star')}
                 >
                   <IconFlag size={12} />
                 </span>
@@ -195,7 +197,7 @@ const ThreadCard = React.memo<ThreadCardProps>(({
                 isSelected ? 'tinta-preview-list--selected' : ''
               }`}
             >
-              {thread.snippet || 'Sem pré-visualização disponível.'}
+              {thread.snippet || t('emailList.noSnippet')}
             </span>
           </div>
         </div>
@@ -224,6 +226,8 @@ export const EmailList: React.FC<EmailListProps> = ({
   onFilterModeChange,
   onSelectThread,
 }) => {
+  const { t } = useI18n();
+
   const unreadCount = useMemo(() => {
     let count = 0;
     for (let i = 0; i < threads.length; i++) {
@@ -244,7 +248,10 @@ export const EmailList: React.FC<EmailListProps> = ({
           text.includes('.png') ||
           text.includes('.jpg') ||
           text.includes('anexo') ||
-          text.includes('ficheiro');
+          text.includes('ficheiro') ||
+          text.includes('attachment') ||
+          text.includes('pièce') ||
+          text.includes('adjunto');
         if (!hasAtt) return false;
       }
       if (q) {
@@ -287,23 +294,23 @@ export const EmailList: React.FC<EmailListProps> = ({
     }
 
     const groups: { group: string; items: ThreadListItem[] }[] = [];
-    if (hoje.length > 0) groups.push({ group: 'Hoje', items: hoje });
-    if (ontem.length > 0) groups.push({ group: 'Ontem', items: ontem });
-    if (estaSemana.length > 0) groups.push({ group: 'Esta semana', items: estaSemana });
-    if (maisAntigos.length > 0) groups.push({ group: 'Mais antigos', items: maisAntigos });
+    if (hoje.length > 0) groups.push({ group: t('emailList.groupToday'), items: hoje });
+    if (ontem.length > 0) groups.push({ group: t('emailList.groupYesterday'), items: ontem });
+    if (estaSemana.length > 0) groups.push({ group: t('emailList.groupThisWeek'), items: estaSemana });
+    if (maisAntigos.length > 0) groups.push({ group: t('emailList.groupOlder'), items: maisAntigos });
     return groups;
-  }, [filteredThreads]);
+  }, [filteredThreads, t]);
 
   const hasSelection = Boolean(selectedThreadIds && selectedThreadIds.size > 0);
 
   return (
-    <section className="tinta-list-pane" aria-label="Lista de conversas">
+    <section className="tinta-list-pane" aria-label={t('sidebar.inbox')}>
       {/* Cabeçalho da Lista */}
       <div className="tinta-list-header">
         <div className="tinta-list-title-row">
           <h1 className="tinta-title-list">{boxTitle}</h1>
           <span className="tinta-meta-mute">
-            {unreadCount} {unreadCount === 1 ? 'por ler' : 'por ler'}
+            {unreadCount} {t('emailList.unreadCountBadge')}
           </span>
         </div>
 
@@ -316,10 +323,10 @@ export const EmailList: React.FC<EmailListProps> = ({
             ref={searchInputRef}
             type="search"
             className="tinta-search-input"
-            placeholder="Pesquisar..."
+            placeholder={t('common.searchPlaceholder')}
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            aria-label="Pesquisar mensagens"
+            aria-label={t('common.searchPlaceholder')}
           />
         </div>
 
@@ -330,28 +337,28 @@ export const EmailList: React.FC<EmailListProps> = ({
             className={`tinta-filter-btn ${filterMode === 'all' ? 'tinta-filter-btn--active' : ''}`}
             onClick={() => onFilterModeChange('all')}
           >
-            Todas
+            {t('emailList.filterAll')}
           </button>
           <button
             type="button"
             className={`tinta-filter-btn ${filterMode === 'unread' ? 'tinta-filter-btn--active' : ''}`}
             onClick={() => onFilterModeChange('unread')}
           >
-            Por ler
+            {t('emailList.filterUnread')}
           </button>
           <button
             type="button"
             className={`tinta-filter-btn ${filterMode === 'starred' ? 'tinta-filter-btn--active' : ''}`}
             onClick={() => onFilterModeChange('starred')}
           >
-            Marcadas
+            {t('emailList.filterStarred')}
           </button>
           <button
             type="button"
             className={`tinta-filter-btn ${filterMode === 'attachments' ? 'tinta-filter-btn--active' : ''}`}
             onClick={() => onFilterModeChange('attachments')}
           >
-            Anexos
+            {t('emailList.filterAttachments')}
           </button>
         </div>
       </div>
@@ -371,7 +378,7 @@ export const EmailList: React.FC<EmailListProps> = ({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>
-              {selectedThreadIds!.size} selecionada{selectedThreadIds!.size > 1 ? 's' : ''}
+              {t('emailList.selectedCount', { count: selectedThreadIds!.size })}
             </span>
             {onClearSelection && (
               <button
@@ -387,7 +394,7 @@ export const EmailList: React.FC<EmailListProps> = ({
                   padding: 0,
                 }}
               >
-                Limpar
+                {t('emailList.clearSelection')}
               </button>
             )}
           </div>
@@ -405,9 +412,9 @@ export const EmailList: React.FC<EmailListProps> = ({
                   cursor: 'pointer',
                   fontSize: '11px',
                 }}
-                title="Marcar como lidas"
+                title={t('emailList.markRead')}
               >
-                Lidas
+                {t('emailList.markRead')}
               </button>
             )}
             {onBulkArchive && (
@@ -423,9 +430,9 @@ export const EmailList: React.FC<EmailListProps> = ({
                   cursor: 'pointer',
                   fontSize: '11px',
                 }}
-                title="Arquivar selecionadas"
+                title={t('emailList.archiveAction')}
               >
-                Arquivar
+                {t('emailList.archiveAction')}
               </button>
             )}
             {onBulkTrash && (
@@ -441,9 +448,9 @@ export const EmailList: React.FC<EmailListProps> = ({
                   cursor: 'pointer',
                   fontSize: '11px',
                 }}
-                title="Mover para a reciclagem"
+                title={t('emailList.moveToTrash')}
               >
-                Lixo
+                {t('emailList.moveToTrash')}
               </button>
             )}
           </div>
@@ -454,7 +461,7 @@ export const EmailList: React.FC<EmailListProps> = ({
       <div className="tinta-list-scroll-area">
         {grouped.length === 0 ? (
           <div className="tinta-list-empty">
-            <span className="tinta-meta-mute">Nenhuma mensagem encontrada.</span>
+            <span className="tinta-meta-mute">{t('emailList.noMessages')}</span>
           </div>
         ) : (
           grouped.map(({ group, items }) => (

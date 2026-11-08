@@ -407,6 +407,20 @@ export async function addCustomAccount(
   });
 }
 
+export async function saveUiLanguage(language: string): Promise<void> {
+  if (!isRunningInsideTauri()) {
+    return;
+  }
+  return invoke<void>('save_ui_language', { language });
+}
+
+export async function getUiLanguage(): Promise<string> {
+  if (!isRunningInsideTauri()) {
+    return 'en';
+  }
+  return invoke<string>('get_ui_language');
+}
+
 export async function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

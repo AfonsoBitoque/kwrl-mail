@@ -1,4 +1,5 @@
 import React, { RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useI18n } from '../i18n';
 import { formatFileSize } from '../services/documentParser';
 import { exportThreadEml, rewriteTextWithAi } from '../services/tauriBridge';
 import { EmailAttachment, ThreadDetail } from '../types/kwrl';
@@ -264,6 +265,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
   onSendEmail,
   isSendingEmail,
 }) => {
+  const { t } = useI18n();
   const [sendMode, setSendMode] = useState<'reply' | 'new'>('reply');
   const [customRecipient, setCustomRecipient] = useState('');
   const [customSubject, setCustomSubject] = useState('');
@@ -489,8 +491,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
               type="button"
               className="tinta-toolbar-btn"
               onClick={onToggleTheme}
-              title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
-              aria-label="Alternar tema"
+              title={theme === 'dark' ? t('readingPane.lightMode') : t('readingPane.darkMode')}
+              aria-label={t('readingPane.lightMode')}
             >
               {theme === 'dark' ? <IconSun size={15} /> : <IconMoon size={15} />}
             </button>
@@ -508,8 +510,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
           }}
         >
           {loadingBody
-            ? 'A carregar mensagem…'
-            : 'Seleciona uma mensagem na lista para ler.'}
+            ? t('readingPane.loadingBody')
+            : t('readingPane.emptyDesc')}
         </div>
 
         {undoToast && (
@@ -520,7 +522,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
               className="tinta-undo-link"
               onClick={undoToast.onUndo}
             >
-              Anular
+              {t('readingPane.undo')}
             </button>
           </div>
         )}
@@ -529,13 +531,13 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
   }
 
   const senderName =
-    lastMessage?.senderName || lastMessage?.senderEmail.split('@')[0] || 'Remetente';
+    lastMessage?.senderName || lastMessage?.senderEmail.split('@')[0] || t('readingPane.from');
   const senderEmail = lastMessage?.senderEmail || '';
   const positionText =
-    totalThreads > 0 ? `${threadIndex + 1} de ${totalThreads}` : '';
+    totalThreads > 0 ? `${threadIndex + 1} / ${totalThreads}` : '';
 
   return (
-    <main className="tinta-reading-pane" aria-label="Painel de leitura">
+    <main className="tinta-reading-pane" aria-label={t('readingPane.emptyTitle')}>
       {/* Barra de Ferramentas (h-12, border-b line) */}
       <header className="tinta-toolbar">
         {/* Esquerda: Arquivar (E), Apagar, Lixo | Responder, Reencaminhar, Marcar */}
@@ -544,8 +546,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             type="button"
             className="tinta-toolbar-btn"
             onClick={onArchive}
-            title="Arquivar (E)"
-            aria-label="Arquivar"
+            title={`${t('emailList.archiveAction')} (E)`}
+            aria-label={t('emailList.archiveAction')}
           >
             <IconArchive size={16} />
           </button>
@@ -554,8 +556,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             type="button"
             className="tinta-toolbar-btn"
             onClick={onTrash}
-            title="Apagar (Backspace)"
-            aria-label="Apagar"
+            title={`${t('common.delete')} (Backspace)`}
+            aria-label={t('common.delete')}
           >
             <IconTrash size={16} />
           </button>
@@ -564,8 +566,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             type="button"
             className="tinta-toolbar-btn"
             onClick={onSpam}
-            title="Lixo"
-            aria-label="Lixo"
+            title={t('sidebar.spam')}
+            aria-label={t('sidebar.spam')}
           >
             <IconSpam size={16} />
           </button>
@@ -576,8 +578,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             type="button"
             className="tinta-toolbar-btn"
             onClick={onReply}
-            title="Responder (/)"
-            aria-label="Responder"
+            title={`${t('readingPane.reply')} (/)`}
+            aria-label={t('readingPane.reply')}
           >
             <IconReply size={16} />
           </button>
@@ -586,8 +588,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             type="button"
             className="tinta-toolbar-btn"
             onClick={onReplyAll || onReply}
-            title="Responder a todos"
-            aria-label="Responder a todos"
+            title={t('readingPane.replyAll')}
+            aria-label={t('readingPane.replyAll')}
           >
             <IconReplyAll size={16} />
           </button>
@@ -596,8 +598,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             type="button"
             className="tinta-toolbar-btn"
             onClick={onForward}
-            title="Reencaminhar"
-            aria-label="Reencaminhar"
+            title={t('readingPane.forward')}
+            aria-label={t('readingPane.forward')}
           >
             <IconForward size={16} />
           </button>
@@ -606,8 +608,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             type="button"
             className="tinta-toolbar-btn"
             onClick={() => window.print()}
-            title="Imprimir conversa (⌘P)"
-            aria-label="Imprimir"
+            title={t('readingPane.print')}
+            aria-label={t('readingPane.print')}
           >
             <IconPrinter size={16} />
           </button>
@@ -616,8 +618,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             type="button"
             className="tinta-toolbar-btn"
             onClick={handleExportEml}
-            title="Exportar conversa para .eml (Soberania de dados)"
-            aria-label="Exportar conversa"
+            title={t('readingPane.exportEml')}
+            aria-label={t('readingPane.exportEml')}
           >
             <IconDownload size={16} />
           </button>
@@ -626,14 +628,14 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             type="button"
             className={`tinta-toolbar-btn ${isStarred ? 'tinta-toolbar-btn--active' : ''}`}
             onClick={onToggleStar}
-            title={isStarred ? 'Desmarcar' : 'Marcar'}
-            aria-label="Marcar mensagem"
+            title={isStarred ? t('emailList.unstar') : t('emailList.star')}
+            aria-label={isStarred ? t('emailList.unstar') : t('emailList.star')}
           >
             <IconFlag size={16} />
           </button>
         </div>
 
-        {/* Direita: "3 de 8", setas K e J, separador, sol/lua, painel IA */}
+        {/* Direita: "3 / 8", setas K e J, separador, sol/lua, painel IA */}
         <div className="tinta-toolbar-group">
           {positionText && (
             <span
@@ -650,8 +652,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             onClick={onPrevThread}
             disabled={threadIndex <= 0}
             style={{ opacity: threadIndex <= 0 ? 0.35 : 1 }}
-            title="Anterior (K)"
-            aria-label="Mensagem anterior"
+            title={t('readingPane.prevThread')}
+            aria-label={t('readingPane.prevThread')}
           >
             <IconChevronUp size={14} />
           </button>
@@ -662,8 +664,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             onClick={onNextThread}
             disabled={threadIndex >= totalThreads - 1}
             style={{ opacity: threadIndex >= totalThreads - 1 ? 0.35 : 1 }}
-            title="Seguinte (J)"
-            aria-label="Mensagem seguinte"
+            title={t('readingPane.nextThread')}
+            aria-label={t('readingPane.nextThread')}
           >
             <IconChevronDown size={14} />
           </button>
@@ -674,8 +676,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             type="button"
             className="tinta-toolbar-btn"
             onClick={onToggleTheme}
-            title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
-            aria-label="Alternar tema"
+            title={theme === 'dark' ? t('readingPane.lightMode') : t('readingPane.darkMode')}
+            aria-label={t('readingPane.lightMode')}
           >
             {theme === 'dark' ? <IconSun size={15} /> : <IconMoon size={15} />}
           </button>
@@ -684,8 +686,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             type="button"
             className={`tinta-toolbar-btn ${aiPanelOpen ? 'tinta-toolbar-btn--active' : ''}`}
             onClick={onToggleAiPanel}
-            title={aiPanelOpen ? 'Fechar assistente lateral' : 'Abrir assistente lateral (⌘J)'}
-            aria-label="Assistente de IA lateral"
+            title={aiPanelOpen ? t('readingPane.closeAiPanel') : t('readingPane.openAiPanel')}
+            aria-label={t('readingPane.openAiPanel')}
           >
             <IconMarginalia size={15} />
           </button>
@@ -698,7 +700,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
           {/* Título da Conversa e Controlo Expandir/Recolher */}
           <div style={{ marginBottom: '20px' }}>
             <h1 className="tinta-title-reading" style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--ink)' }}>
-              {thread.subject || '(Sem assunto)'}
+              {thread.subject || t('emailList.noSubject')}
             </h1>
             {summaryText && (
               <div
@@ -713,7 +715,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 600, color: 'var(--acc)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                   <span>✦</span>
-                  <span>Resumo da Conversa</span>
+                  <span>{t('readingPane.conversationSummary')}</span>
                 </div>
                 <div style={{ marginTop: '4px', fontSize: '12.5px', lineHeight: 1.5, color: 'var(--ink)' }}>
                   {summaryText}
@@ -723,7 +725,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             {thread.messages.length > 1 && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '8px' }}>
                 <span style={{ fontSize: '12px', color: 'var(--mute)' }}>
-                  {thread.messages.length} mensagens nesta conversa
+                  {thread.messages.length} {t('sidebar.inbox').toLowerCase()}
                 </span>
                 <button
                   type="button"
@@ -737,7 +739,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                     fontWeight: 500,
                   }}
                 >
-                  {expandedMessageIds.size === thread.messages.length ? 'Recolher anteriores' : 'Expandir todas'}
+                  {expandedMessageIds.size === thread.messages.length ? t('sidebar.collapseSidebar') : t('sidebar.expandSidebar')}
                 </button>
               </div>
             )}
@@ -829,7 +831,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                         }}
                       >
                         <div>
-                          <span>Para: {msg.toHeader || 'mim'}</span>
+                          <span>{t('readingPane.to')}: {msg.toHeader || senderName}</span>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -850,9 +852,9 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                                 fontWeight: 500,
                                 color: 'var(--acc)',
                               }}
-                              title="Cancelar subscrição desta lista de distribuição"
+                              title={t('readingPane.unsubscribeNotice')}
                             >
-                              Cancelar Subscrição
+                              {t('readingPane.unsubscribe')}
                             </button>
                           )}
                           {msg.bodyHtml && (
@@ -872,7 +874,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                                 color: 'var(--ink)',
                               }}
                             >
-                              {showHtml ? 'Ver texto simples' : 'Ver HTML'}
+                              {showHtml ? 'Plain text' : 'HTML'}
                             </button>
                           )}
                         </div>
@@ -902,7 +904,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                                 >
                                   <span>🛡️</span>
                                   <span>
-                                    Proteção Ativa: {blockedTrackers} {blockedTrackers === 1 ? 'rastreador' : 'rastreadores'} de abertura bloqueado(s) localmente
+                                    {t('readingPane.blockedTrackersNotice', { count: blockedTrackers })}
                                   </span>
                                 </div>
                               )}
@@ -920,7 +922,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                       {msg.attachments && msg.attachments.length > 0 && (
                         <div style={{ marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--line)' }}>
                           <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--mute)', marginBottom: '8px' }}>
-                            Anexos recebidos ({msg.attachments.length})
+                            {t('readingPane.attachments')} ({msg.attachments.length})
                           </div>
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                             {msg.attachments.map((att) => (
@@ -968,7 +970,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                                       display: 'flex',
                                       alignItems: 'center',
                                     }}
-                                    title="Descarregar e abrir ficheiro"
+                                    title={t('readingPane.download')}
                                   >
                                     <IconDownload size={14} />
                                   </button>
@@ -990,7 +992,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             <div className="tinta-draft-card-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>
-                  {sendMode === 'reply' ? 'Rascunho de resposta' : 'Novo e-mail'}
+                  {sendMode === 'reply' ? t('readingPane.sendInThisThread') : t('compose.newDraft')}
                 </span>
                 {aiNotice && (
                   <span style={{ fontSize: '11px', color: 'var(--acc, #7567a3)', fontStyle: 'italic' }}>
@@ -1023,7 +1025,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                       cursor: 'pointer',
                     }}
                   >
-                    Responder
+                    {t('readingPane.reply')}
                   </button>
                   <button
                     type="button"
@@ -1039,7 +1041,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                       cursor: 'pointer',
                     }}
                   >
-                    Novo e-mail
+                    {t('compose.newDraft')}
                   </button>
                 </div>
               </div>
@@ -1058,10 +1060,10 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                   className="tinta-btn-secondary"
                   style={{ fontSize: '11px', padding: '3px 8px' }}
                   onClick={() => draftFileInputRef.current?.click()}
-                  title="Anexar PDFs ou outros documentos ao e-mail"
+                  title={t('readingPane.attachFiles')}
                 >
                   <IconPaperclip size={12} />
-                  <span>+ Anexar ficheiro</span>
+                  <span>+ {t('compose.attachFiles')}</span>
                 </button>
 
                 <div style={{ position: 'relative' }} ref={aiMenuRef}>
@@ -1075,10 +1077,10 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                     }}
                     disabled={!localDraft.trim() || isAiRevising}
                     onClick={() => setAiMenuOpen((prev) => !prev)}
-                    title={!localDraft.trim() ? 'Escreve algo para usar o Assistente de IA' : 'Organizar texto, tirar erros ou traduzir com o Motor de IA'}
+                    title={!localDraft.trim() ? t('compose.bodyPlaceholder') : t('compose.aiAssist')}
                   >
                     <IconSparkles size={12} />
-                    <span>{isAiRevising ? 'A processar...' : 'Rever com IA'}</span>
+                    <span>{isAiRevising ? t('compose.generating') : t('compose.aiAssist')}</span>
                   </button>
 
                   {/* Dropdown Menu */}
@@ -1122,8 +1124,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                         onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
                         onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                       >
-                        <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink)' }}>✨ Organizar e tirar erros</span>
-                        <span style={{ fontSize: '10px', color: 'var(--mute)' }}>Corrige ortografia, pontuação e estrutura em pt-PT</span>
+                        <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink)' }}>{t('compose.toneOrganize')}</span>
+                        <span style={{ fontSize: '10px', color: 'var(--mute)' }}>{t('compose.organizeDesc')}</span>
                       </button>
 
                       <button
@@ -1143,8 +1145,8 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                         onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
                         onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                       >
-                        <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink)' }}>👔 Tornar mais formal</span>
-                        <span style={{ fontSize: '10px', color: 'var(--mute)' }}>Tom executivo e polido</span>
+                        <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink)' }}>{t('compose.toneFormal')}</span>
+                        <span style={{ fontSize: '10px', color: 'var(--mute)' }}>{t('compose.formalDesc')}</span>
                       </button>
 
                       <button
@@ -1164,14 +1166,14 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                         onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--hov)')}
                         onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                       >
-                        <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink)' }}>⚡ Tornar mais curto</span>
-                        <span style={{ fontSize: '10px', color: 'var(--mute)' }}>Conciso e direto ao assunto</span>
+                        <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--ink)' }}>{t('compose.toneShort')}</span>
+                        <span style={{ fontSize: '10px', color: 'var(--mute)' }}>{t('compose.shortDesc')}</span>
                       </button>
 
                       <div style={{ height: '1px', backgroundColor: 'var(--line)', margin: '3px 0' }} />
 
                       <div style={{ padding: '2px 8px', fontSize: '10px', color: 'var(--faint)', fontWeight: 600, textTransform: 'uppercase' }}>
-                        Tradução
+                        {t('compose.toneTranslate')}
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px', padding: '0 4px' }}>
                         <button
@@ -1187,7 +1189,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                             cursor: 'pointer',
                           }}
                         >
-                          🇬🇧 Inglês
+                          {t('compose.langEnglish')}
                         </button>
                         <button
                           type="button"
@@ -1202,7 +1204,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                             cursor: 'pointer',
                           }}
                         >
-                          🇪🇸 Espanhol
+                          {t('compose.langSpanish')}
                         </button>
                         <button
                           type="button"
@@ -1217,7 +1219,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                             cursor: 'pointer',
                           }}
                         >
-                          🇫🇷 Francês
+                          {t('compose.langFrench')}
                         </button>
                         <button
                           type="button"
@@ -1232,7 +1234,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                             cursor: 'pointer',
                           }}
                         >
-                          🇩🇪 Alemão
+                          {t('compose.langGerman')}
                         </button>
                       </div>
 
@@ -1262,7 +1264,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                         onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                       >
                         <span>✏️</span>
-                        <span>Pedir outra alteração personalizada...</span>
+                        <span>{t('compose.instructionCustom')}</span>
                       </button>
                     </div>
                   )}
@@ -1274,9 +1276,9 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                     onClick={handleUndoAi}
                     className="tinta-btn-secondary"
                     style={{ fontSize: '11px', padding: '3px 8px' }}
-                    title="Anular alteração da IA e voltar ao rascunho anterior"
+                    title={t('readingPane.revertAi')}
                   >
-                    Anular IA
+                    {t('compose.undo')}
                   </button>
                 )}
 
@@ -1286,7 +1288,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                     className="tinta-btn-discard"
                     onClick={onDiscardDraft}
                   >
-                    Limpar
+                    {t('compose.discardDraft')}
                   </button>
                 )}
               </div>
@@ -1347,7 +1349,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                   className="tinta-btn-primary"
                   style={{ fontSize: '11px', padding: '3px 10px' }}
                 >
-                  Aplicar
+                  {t('compose.customPromptApply')}
                 </button>
                 <button
                   type="button"
@@ -1360,7 +1362,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                     fontSize: '11px',
                   }}
                 >
-                  Cancelar
+                  {t('common.cancel')}
                 </button>
               </div>
             )}
@@ -1377,7 +1379,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                   padding: '2px 0',
                 }}
               >
-                <span style={{ color: 'var(--faint)' }}>A responder a:</span>
+                <span style={{ color: 'var(--faint)' }}>{t('readingPane.reply')}:</span>
                 <span style={{ fontWeight: 500, color: 'var(--ink)' }}>{senderName}</span>
                 <span style={{ color: 'var(--faint)' }}>({senderEmail})</span>
               </div>
@@ -1385,13 +1387,13 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '2px 0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <label style={{ fontSize: '12px', color: 'var(--faint)', width: '56px', flexShrink: 0 }}>
-                    Para:
+                    {t('compose.to')}:
                   </label>
                   <input
                     type="email"
                     value={customRecipient}
                     onChange={(e) => setCustomRecipient(e.target.value)}
-                    placeholder="destinatario@exemplo.com"
+                    placeholder={t('compose.toPlaceholder')}
                     style={{
                       flex: 1,
                       fontSize: '12.5px',
@@ -1406,13 +1408,13 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <label style={{ fontSize: '12px', color: 'var(--faint)', width: '56px', flexShrink: 0 }}>
-                    Assunto:
+                    {t('compose.subject')}:
                   </label>
                   <input
                     type="text"
                     value={customSubject}
                     onChange={(e) => setCustomSubject(e.target.value)}
-                    placeholder="Assunto da mensagem"
+                    placeholder={t('compose.subjectPlaceholder')}
                     style={{
                       flex: 1,
                       fontSize: '12.5px',
@@ -1431,11 +1433,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             <textarea
               ref={replyInputRef as any}
               className="tinta-draft-textarea"
-              placeholder={
-                sendMode === 'reply'
-                  ? `Escreve uma resposta para ${senderName} ou usa o Assistente de IA lateral (⌘J)…`
-                  : 'Escreve a tua mensagem ou usa o Assistente de IA lateral (⌘J)…'
-              }
+              placeholder={t('compose.bodyPlaceholder')}
               value={localDraft}
               onChange={(e) => handleDraftInputChange(e.target.value)}
               onBlur={handleDraftInputBlur}
@@ -1456,7 +1454,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                       type="button"
                       className="tinta-attachment-pill-remove"
                       onClick={() => onRemoveAttachment(att.id)}
-                      title="Remover anexo"
+                      title={t('readingPane.removeAttachment')}
                     >
                       <IconClose size={11} />
                     </button>
@@ -1477,9 +1475,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             >
               <span className="tinta-meta-faint">
                 {attachments.length > 0
-                  ? `${attachments.length} ${
-                      attachments.length === 1 ? 'ficheiro em anexo' : 'ficheiros em anexo'
-                    }`
+                  ? `${attachments.length} ${t('readingPane.attachments').toLowerCase()}`
                   : ''}
               </span>
 
@@ -1494,9 +1490,9 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                     onClick={() => {
                       void onSendEmail('new', customRecipient || senderEmail, customSubject || thread.subject);
                     }}
-                    title="Enviar como um e-mail novo / thread separada"
+                    title={t('readingPane.sendAsNewThread')}
                   >
-                    Enviar como novo e-mail
+                    {t('readingPane.sendAsNewThread')}
                   </button>
                 ) : (
                   <button
@@ -1507,9 +1503,9 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                     onClick={() => {
                       void onSendEmail('reply');
                     }}
-                    title="Enviar integrado nesta conversa"
+                    title={t('readingPane.sendInThisThread')}
                   >
-                    Enviar como resposta
+                    {t('readingPane.sendInThisThread')}
                   </button>
                 )}
 
@@ -1535,16 +1531,16 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
                   }}
                 >
                   {isSendingEmail ? (
-                    'A enviar…'
+                    t('readingPane.sendingAction')
                   ) : sendMode === 'reply' ? (
                     <>
                       <IconReply size={13} />
-                      <span>Enviar como resposta</span>
+                      <span>{t('readingPane.sendInThisThread')}</span>
                     </>
                   ) : (
                     <>
                       <IconArrowUp size={13} />
-                      <span>Enviar como novo e-mail</span>
+                      <span>{t('readingPane.sendAsNewThread')}</span>
                     </>
                   )}
                 </button>
@@ -1570,7 +1566,7 @@ export const ReadingPane: React.FC<ReadingPaneProps> = ({
             className="tinta-undo-link"
             onClick={undoToast.onUndo}
           >
-            Anular
+            {t('readingPane.undo')}
           </button>
         </div>
       )}

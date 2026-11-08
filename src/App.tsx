@@ -7,6 +7,7 @@ import { GmailOnboardingView } from './components/GmailOnboardingView';
 import { PrivacySettingsDrawer } from './components/PrivacySettingsDrawer';
 import { ReadingPane } from './components/ReadingPane';
 import { MAILBOXES, SidebarViews } from './components/SidebarViews';
+import { useI18n } from './i18n';
 import {
   archiveThreads,
   AttachmentPayload,
@@ -66,6 +67,7 @@ const DEFAULT_MODEL_STATUS: LocalModelStatus = {
 
 export const App: React.FC = () => {
   const tauriRuntime = isRunningInsideTauri();
+  const { t, setLanguage } = useI18n();
 
   // Modo inicial segue prefers-color-scheme com persistência local
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -167,10 +169,10 @@ export const App: React.FC = () => {
     subscribeToGmailSyncError((errEvt) => {
       if (cancelled) return;
       if (errEvt.isAuthError) {
-        setOnboardingError('Sessão Google expirada ou revogada. Por favor autentique novamente a conta.');
-        triggerUndoNotice('Sessão expirada: reconecte a conta nas definições', () => setSettingsOpen(true));
+        setOnboardingError(t('toast.sessionExpired'));
+        triggerUndoNotice(t('toast.sessionExpired'), () => setSettingsOpen(true));
       } else if (errEvt.isQuotaError) {
-        triggerUndoNotice('Quota temporária da API Gmail excedida. A aguardar retoma automática.', () => {});
+        triggerUndoNotice(t('toast.quotaExceeded'), () => {});
       }
     }).then((fn) => {
       if (cancelled) fn();
@@ -181,11 +183,16 @@ export const App: React.FC = () => {
       cancelled = true;
       if (unlisten) unlisten();
     };
-  }, [tauriRuntime]);
+  }, [tauriRuntime, t]);
 
   const refreshBootstrap = useCallback(async () => {
     if (!tauriRuntime) return;
     const boot = await getBootstrapState();
+    if (boot.uiLanguage && (boot.uiLanguage === 'en' || boot.uiLanguage === 'pt' || boot.uiLanguage === 'fr' || boot.uiLanguage === 'es')) {
+      if (!localStorage.getItem('kwrl_language')) {
+        setLanguage(boot.uiLanguage as any);
+      }
+    }
     setOauthClientId(boot.oauthClientId);
     setOauthSecretInKeychain(boot.oauthSecretInKeychain);
     setAccounts(boot.accounts);
@@ -198,7 +205,7 @@ export const App: React.FC = () => {
     if (boot.accounts.length === 0) {
       setShowOnboarding(true);
     }
-  }, [tauriRuntime]);
+  }, [tauriRuntime, setLanguage]);
 
   const refreshThreadList = useCallback(async () => {
     if (!tauriRuntime) return;
@@ -427,14 +434,17 @@ export const App: React.FC = () => {
     if (activeBoxId.startsWith('custom:')) {
       const cid = activeBoxId.replace('custom:', '');
       const cm = customMailboxes.find((m) => m.id === cid);
-      return cm ? cm.name : 'Caixa Personalizada';
+      return cm ? cm.name : t('sidebar.customMailboxes');
     }
     if (activeBoxId === 'inbox') {
-      return accounts.length > 1 ? 'Todas as Caixas' : 'Entrada';
+      return accounts.length > 1 ? t('sidebar.allInboxes') : t('sidebar.inbox');
     }
     const def = MAILBOXES.find((b) => b.id === activeBoxId);
-    return def ? def.label : 'Entrada';
-  }, [activeBoxId, accounts, customMailboxes]);
+    if (def) {
+      return t(`sidebar.${def.id}` as any);
+    }
+    return t('sidebar.inbox');
+  }, [activeBoxId, accounts, customMailboxes, t]);
 
   const selectThreadSeqRef = useRef(0);
   const handleSelectThread = useCallback(
@@ -556,19 +566,19 @@ export const App: React.FC = () => {
           setThreads((prev) =>
             prev.map((t) => (t.id === tid ? { ...t, isInbox: true } : t))
           );
-          triggerUndoNotice(res.error || 'Não foi possível arquivar a conversa no Gmail.', () => {});
+          triggerUndoNotice(res.error || t('toast.archiveError'), () => {});
           return;
         }
       } catch (err) {
         setThreads((prev) =>
           prev.map((t) => (t.id === tid ? { ...t, isInbox: true } : t))
         );
-        triggerUndoNotice('Falha de ligação ao arquivar conversa.', () => {});
+        triggerUndoNotice(t('toast.connectionError'), () => {});
         return;
       }
     }
 
-    triggerUndoNotice('Conversa arquivada', async () => {
+    triggerUndoNotice(t('toast.threadArchived'), async () => {
       setThreads((prev) =>
         prev.map((t) => (t.id === tid ? { ...t, isInbox: true } : t))
       );
@@ -603,19 +613,19 @@ export const App: React.FC = () => {
           setThreads((prev) =>
             prev.map((t) => (t.id === tid ? { ...t, isTrash: false, isInbox: true } : t))
           );
-          triggerUndoNotice(res.error || 'Não foi possível mover para a reciclagem.', () => {});
+          triggerUndoNotice(res.error || t('toast.trashError'), () => {});
           return;
         }
       } catch (err) {
         setThreads((prev) =>
           prev.map((t) => (t.id === tid ? { ...t, isTrash: false, isInbox: true } : t))
         );
-        triggerUndoNotice('Falha de ligação ao mover para a reciclagem.', () => {});
+        triggerUndoNotice(t('toast.connectionError'), () => {});
         return;
       }
     }
 
-    triggerUndoNotice('Conversa movida para a reciclagem', async () => {
+    triggerUndoNotice(t('toast.threadTrashed'), async () => {
       setThreads((prev) =>
         prev.map((t) => (t.id === tid ? { ...t, isTrash: false, isInbox: true } : t))
       );
@@ -650,19 +660,19 @@ export const App: React.FC = () => {
           setThreads((prev) =>
             prev.map((t) => (t.id === tid ? { ...t, isSpam: false, isInbox: true } : t))
           );
-          triggerUndoNotice(res.error || 'Não foi possível mover para o Spam.', () => {});
+          triggerUndoNotice(res.error || t('toast.spamError'), () => {});
           return;
         }
       } catch (err) {
         setThreads((prev) =>
           prev.map((t) => (t.id === tid ? { ...t, isSpam: false, isInbox: true } : t))
         );
-        triggerUndoNotice('Falha de ligação ao marcar spam.', () => {});
+        triggerUndoNotice(t('toast.connectionError'), () => {});
         return;
       }
     }
 
-    triggerUndoNotice('Conversa movida para o Spam', async () => {
+    triggerUndoNotice(t('toast.threadSpammed'), async () => {
       setThreads((prev) =>
         prev.map((t) => (t.id === tid ? { ...t, isSpam: false, isInbox: true } : t))
       );
@@ -692,13 +702,13 @@ export const App: React.FC = () => {
           setThreads((prev) =>
             prev.map((t) => (t.id === tid ? { ...t, isStarred: !willStar } : t))
           );
-          triggerUndoNotice(res.error || 'Falha ao atualizar estrela no Gmail', () => {});
+          triggerUndoNotice(res.error || t('toast.connectionError'), () => {});
         }
       } catch (err) {
         setThreads((prev) =>
           prev.map((t) => (t.id === tid ? { ...t, isStarred: !willStar } : t))
         );
-        triggerUndoNotice('Erro de ligação ao atualizar estrela', () => {});
+        triggerUndoNotice(t('toast.connectionError'), () => {});
       }
     }
   };
@@ -743,11 +753,11 @@ export const App: React.FC = () => {
         setThreads((prev) =>
           prev.map((t) => (failedAll.includes(t.id) ? { ...t, isInbox: true } : t))
         );
-        triggerUndoNotice(`${failedAll.length} conversa(s) não puderam ser arquivadas remotamente.`, () => {});
+        triggerUndoNotice(t('toast.archiveError'), () => {});
       }
     }
 
-    triggerUndoNotice(`${ids.length} conversas arquivadas`, async () => {
+    triggerUndoNotice(t('toast.threadsArchived', { count: ids.length }), async () => {
       setThreads((prev) =>
         prev.map((t) => (ids.includes(t.id) ? { ...t, isInbox: true } : t))
       );
@@ -786,11 +796,11 @@ export const App: React.FC = () => {
         setThreads((prev) =>
           prev.map((t) => (failedAll.includes(t.id) ? { ...t, isTrash: false, isInbox: true } : t))
         );
-        triggerUndoNotice(`${failedAll.length} conversa(s) não puderam ser movidas para a reciclagem.`, () => {});
+        triggerUndoNotice(t('toast.trashError'), () => {});
       }
     }
 
-    triggerUndoNotice(`${ids.length} conversas movidas para a reciclagem`, async () => {
+    triggerUndoNotice(t('toast.threadsTrashed', { count: ids.length }), async () => {
       setThreads((prev) =>
         prev.map((t) => (ids.includes(t.id) ? { ...t, isTrash: false, isInbox: true } : t))
       );
@@ -829,11 +839,16 @@ export const App: React.FC = () => {
         setThreads((prev) =>
           prev.map((t) => (failedAll.includes(t.id) ? { ...t, unread: read } : t))
         );
-        triggerUndoNotice(`${failedAll.length} conversa(s) não puderam ser atualizadas no Gmail.`, () => {});
+        triggerUndoNotice(t('toast.connectionError'), () => {});
       }
     }
 
-    triggerUndoNotice(`${ids.length} conversas marcadas como ${read ? 'lidas' : 'não lidas'}`, () => {});
+    triggerUndoNotice(
+      read
+        ? t('toast.threadsMarkedRead', { count: ids.length })
+        : t('toast.threadsMarkedUnread', { count: ids.length }),
+      () => {}
+    );
   };
 
   const handleDownloadAttachment = async (messageId: string, attachmentId: string, filename: string) => {
@@ -841,10 +856,11 @@ export const App: React.FC = () => {
     if (!tauriRuntime || !accountEmail) return;
     try {
       const savedPath = await downloadAttachment(accountEmail, messageId, attachmentId, filename);
-      triggerUndoNotice(`Ficheiro descarregado para ${savedPath}`, () => {});
+      triggerUndoNotice(t('toast.fileDownloaded', { path: savedPath }), () => {});
     } catch (err) {
       console.error('Erro ao descarregar anexo:', err);
-      triggerUndoNotice(`Falha ao descarregar anexo: ${err instanceof Error ? err.message : String(err)}`, () => {});
+      const errMsg = err instanceof Error ? err.message : String(err);
+      triggerUndoNotice(t('toast.fileDownloadFailed', { error: errMsg }), () => {});
     }
   };
 
@@ -1086,7 +1102,7 @@ export const App: React.FC = () => {
 
     const accountEmail = openedThread.accountEmail || selectedAccount?.email;
     if (!accountEmail) {
-      triggerUndoNotice('Nenhuma conta Gmail selecionada para envio.', () => {});
+      triggerUndoNotice(t('toast.noAccountSelected'), () => {});
       return;
     }
 
@@ -1094,7 +1110,7 @@ export const App: React.FC = () => {
     const recipient =
       mode === 'reply' ? lastMsg?.senderEmail || '' : customTo || lastMsg?.senderEmail || '';
     if (!recipient) {
-      triggerUndoNotice('Por favor indica o endereço de destino (Para:).', () => {});
+      triggerUndoNotice(t('toast.specifyRecipient'), () => {});
       return;
     }
 
@@ -1142,13 +1158,11 @@ export const App: React.FC = () => {
       setDraftsByThread((prev) => ({ ...prev, [selectedThreadId]: '' }));
       setAttachmentsByThread((prev) => ({ ...prev, [selectedThreadId]: [] }));
 
-      const modeLabel = mode === 'reply' ? 'como resposta' : 'como novo e-mail';
-      const attMsg = atts.length > 0 ? ` com ${atts.length} anexo(s)` : '';
-      triggerUndoNotice(`E-mail enviado ${modeLabel}${attMsg} com sucesso via Gmail!`, () => {});
+      triggerUndoNotice(t('toast.emailSentSuccess'), () => {});
     } catch (err: unknown) {
       console.error('Erro ao enviar e-mail:', err);
       const errMsg = err instanceof Error ? err.message : String(err);
-      triggerUndoNotice(`Falha ao enviar e-mail: ${errMsg}`, () => {});
+      triggerUndoNotice(t('toast.emailSendFailed', { error: errMsg }), () => {});
     } finally {
       setIsSendingEmail(false);
     }
@@ -1203,13 +1217,13 @@ export const App: React.FC = () => {
 
       setComposeOpen(false);
       setComposeInitialData(null);
-      triggerUndoNotice(`E-mail enviado para ${payload.to.join(', ')} com sucesso!`, () => {});
+      triggerUndoNotice(t('toast.emailSentSuccess'), () => {});
       await refreshBootstrap();
       await refreshThreadList();
     } catch (err: unknown) {
       console.error('Erro ao enviar e-mail:', err);
       const errMsg = err instanceof Error ? err.message : String(err);
-      triggerUndoNotice(`Falha ao enviar e-mail: ${errMsg}`, () => {});
+      triggerUndoNotice(t('toast.emailSendFailed', { error: errMsg }), () => {});
     } finally {
       setIsSendingEmail(false);
     }
@@ -1272,10 +1286,11 @@ export const App: React.FC = () => {
       await startGmailOAuth('modify-and-labels');
       await refreshBootstrap();
       await refreshThreadList();
-      triggerUndoNotice('Nova conta Gmail associada com sucesso!', () => {});
+      triggerUndoNotice(t('toast.accountAddedSuccess'), () => {});
     } catch (err) {
       console.error('Erro ao adicionar conta:', err);
-      triggerUndoNotice(`Falha ao adicionar conta: ${err instanceof Error ? err.message : String(err)}`, () => {});
+      const errMsg = err instanceof Error ? err.message : String(err);
+      triggerUndoNotice(t('toast.accountAddFailed', { error: errMsg }), () => {});
     } finally {
       setIsAuthenticating(false);
     }
@@ -1453,7 +1468,7 @@ export const App: React.FC = () => {
                 ...prev,
                 [selectedThreadId]: [...(prev[selectedThreadId] || []), att],
               }));
-              triggerUndoNotice(`Ficheiro "${att.name}" anexado ao rascunho de resposta`, () => {});
+              triggerUndoNotice(t('toast.attachmentAdded', { name: att.name }), () => {});
             }
           }}
         />
