@@ -749,15 +749,20 @@ impl LlmSupervisor {
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
             .unwrap_or("Utilizador");
+
+        let draft_addressee = crate::prompt_guard::extract_draft_addressee(text);
         let recipient_display_name = crate::prompt_guard::resolve_recipient_display_name(recipient, Some(user_sig));
 
-        let (greeting_directive, greeting_sample) = match recipient_display_name.as_deref() {
+        // Prioridade absoluta ao destinatário mencionado diretamente no texto de entrada pelo utilizador
+        let resolved_recipient = draft_addressee.as_deref().or(recipient_display_name.as_deref());
+
+        let (greeting_directive, greeting_sample) = match resolved_recipient {
             Some(name) => (
-                format!("O destinatário chama-se {}. Usa a saudação 'Estimado {},' ou 'Olá {},'. É EXPRESSAMENTE PROIBIDO usar 'Estimado(a)'.", name, name, name),
-                format!("Estimado {},", name),
+                format!("O destinatário chama-se {}. Usa a saudação 'Olá {},' ou 'Caro {},' se for adequado. É EXPRESSAMENTE PROIBIDO usar 'Estimado(a)'.", name, name, name),
+                format!("Olá {},", name),
             ),
             None => (
-                "O nome do destinatário não foi especificado. Usa obrigatoriamente 'Boa tarde,' ou 'Olá,'. É EXPRESSAMENTE PROIBIDO usar 'Estimado(a),', 'Caro(a),' ou inventar nomes fictícios.".to_string(),
+                "O nome do destinatário não foi especificado. Usa 'Boa tarde,' ou 'Olá,'. É EXPRESSAMENTE PROIBIDO usar 'Estimado(a),', 'Caro(a),' ou inventar nomes fictícios.".to_string(),
                 "Boa tarde,".to_string(),
             ),
         };
@@ -780,35 +785,51 @@ impl LlmSupervisor {
                 "es" => "Spanish (español)",
                 _ => "English",
             };
-            let greet_rule = match recipient_display_name.as_deref() {
-                Some(name) => format!("The recipient's name is {name}. Start with an appropriate greeting using {name}."),
-                None => "Do NOT use placeholders like '[Name]' or '[Recipient]'. Use a natural direct greeting.".to_string(),
+            let greet_rule = match resolved_recipient {
+                Some(name) => format!("The recipient's name is {name}. Start with an appropriate greeting using {name} (e.g. 'Dear {name},' or 'Hi {name},')."),
+                None => "Do NOT use placeholders like '[Name]' or '[Recipient]'. Use a natural direct greeting (e.g. 'Hello,' or 'Good afternoon,').".to_string(),
             };
             let sys = match action {
                 "formal" => format!(
-                    "You are the formal writing assistant of Kwrl Mail.\n\
+                    "You are the executive writing assistant of Kwrl Mail.\n\
                      Rewrite the user's draft into a polished, natural, professional, and formal email in {lang_label}.\n\
                      STRICT RULES:\n\
-                     1. Keep the exact language ({lang_label}) and core meaning of the user's draft. Do NOT invent previous messages or unmentioned topics.\n\
-                     2. {greet_rule}\n\
-                     3. Sign off formally with the sender's name: {user_sig}. NEVER output placeholders like '[Your Name]'.\n\
-                     4. Separate greeting, body paragraphs, and sign-off with blank lines (double newline).\n\
-                     5. Output ONLY the final email text with zero meta-text."
+                     1. Keep the exact language ({lang_label}) and core meaning of the user's draft. Preserve all dates, times, and facts.\n\
+                     2. GREETING: {greet_rule} Output EXACTLY ONE greeting at the very top. NEVER write duplicate greetings.\n\
+                     3. SENDER & SIGN-OFF: The sender of this email is {user_sig}. Sign off formally ('Best regards,') with {user_sig}. NEVER sign off with the recipient's name or placeholders like '[Your Name]'.\n\
+                     4. NO ROBOTIC CLICHÉS: Write with modern, crisp, professional executive clarity. Avoid stiff clichés like 'I am writing this email to inform you that' or 'Please be advised that'.\n\
+                     5. NO SUBJECT HEADERS: NEVER write 'Subject:', email headers, or XML tags. Output ONLY the email body.\n\
+                     6. PARAGRAPHS: Separate greeting, body paragraphs, and sign-off with blank lines (double newline).\n\
+                     7. Output ONLY the final email text with zero meta-text.\n\
+                     Example:\n\
+                     Input: \"hi john can we meet tomorrow at 3pm to discuss the budget thanks\"\n\
+                     Output:\n\
+                     Dear John,\n\
+\n\
+                     Could we meet tomorrow at 3:00 PM to discuss the budget?\n\
+\n\
+                     Thank you.\n\
+\n\
+                     Best regards,\n\
+                     {user_sig}"
                 ),
                 "organize_and_correct" => format!(
                     "You are the writing and proofreading assistant of Kwrl Mail.\n\
                      Fix spelling, grammar, and punctuation in the user's draft, and organize it into clean, well-spaced email paragraphs in {lang_label}.\n\
                      STRICT RULES:\n\
-                     1. Keep the exact language ({lang_label}) and meaning of the original text.\n\
-                     2. {greet_rule}\n\
-                     3. Sign with {user_sig} if appropriate. NEVER output placeholders like '[Name]' or '[Your Name]'.\n\
-                     4. Separate paragraphs with blank lines (double newline).\n\
-                     5. Output ONLY the revised email text with zero meta-text."
+                     1. Keep the exact language ({lang_label}) and meaning of the original text. Preserve all facts, dates, and names.\n\
+                     2. GREETING: {greet_rule} Output EXACTLY ONE greeting at the top.\n\
+                     3. SENDER: Sign off with {user_sig} if appropriate. NEVER sign with the recipient's name or placeholders like '[Name]' or '[Your Name]'.\n\
+                     4. NO HEADERS: NEVER write 'Subject:' or email headers. Output ONLY the email text.\n\
+                     5. Separate paragraphs with blank lines (double newline).\n\
+                     6. Output ONLY the revised email text with zero meta-text."
                 ),
                 "short" => format!(
                     "You are the conciseness assistant of Kwrl Mail.\n\
-                     Condense the user's text to make it concise, direct, and clear in {lang_label}, preserving clean paragraph breaks.\n\
-                     Output ONLY the condensed text with zero meta-text."
+                     Condense the user's text to make it concise, direct, and clear in {lang_label}, preserving essential facts, dates, and clean paragraph breaks.\n\
+                     STRICT RULES:\n\
+                     1. NEVER generate 'Subject:', email headers, or meta-commentary.\n\
+                     2. Output ONLY the condensed text with zero meta-text."
                 ),
                 _ => format!(
                     "You are the writing assistant of Kwrl Mail.\n\
@@ -818,85 +839,89 @@ impl LlmSupervisor {
                 ),
             };
             let usr = format!(
-                "<RAW_TEXT>\n{}\n</RAW_TEXT>\n\nOutput the revised text in {lang_label}:",
+                "<RAW_TEXT>\n{}\n</RAW_TEXT>\n\nOutput the revised text in {lang_label} (Do NOT write 'Subject:' or headers, output ONLY the email body):",
                 text.trim()
             );
             (sys, usr)
         } else {
             let sys = match action {
                 "formal" => format!("\
-És o assistente de redação e revisão formal do Kwrl, especialista em correspondência em português europeu (Portugal).\n\
+És o assistente de redação formal e executiva do Kwrl, especialista em correspondência em português europeu (Portugal).\n\
 O teu papel é transformar o texto do utilizador num e-mail formal, natural, polido e perfeitamente estruturado.\n\
 \n\
-CONTEXTO DE ESCRITA (NOVA MENSAGEM DO ZERO):\n\
-- Este e-mail é uma nova composição original escrita pelo remetente ({}). NÃO é uma resposta a nenhuma mensagem recebida.\n\
-- É TERMINANTEMENTE PROIBIDO inventar que recebeste uma mensagem, telefonema ou contacto anterior. NUNCA escrevas 'O prazer de receber sua mensagem', 'Obrigado pelo seu e-mail', 'Em resposta' nem clichês como 'Espero que esteja bem' ou 'Espero que este e-mail o encontre bem'.\n\
-- Trata direta e educadamente do assunto pretendido pelo utilizador.\n\
+CONTEXTO E FIDELIDADE (ZERO ALUCINAÇÕES):\n\
+- Este e-mail é uma mensagem original escrita pelo remetente ({}). NÃO é uma resposta a nenhuma mensagem recebida.\n\
+- É TERMINANTEMENTE PROIBIDO inventar contactos anteriores ('O prazer de receber a sua mensagem', 'Em resposta').\n\
+- Baseia-te EXCLUSIVAMENTE nas ideias, assuntos e pedidos do texto de entrada. Preserva rigorosamente todas as datas, horários e factos.\n\
 \n\
-REGRA FUNDAMENTAL DE FIDELIDADE (ZERO ALUCINAÇÕES):\n\
-1. BASEIA-TE EXCLUSIVAMENTE nas ideias, assuntos e pedidos presentes no texto do utilizador. É ESTRITAMENTE PROIBIDO inventar tarefas, serviços ou temas não mencionados pelo utilizador.\n\
-2. Mantém o significado exato da mensagem original, apenas elevando o registo de linguagem e a estrutura.\n\
-\n\
-DESTINATÁRIO E REMETENTE:\n\
+DESTINATÁRIO E SAUDAÇÃO:\n\
 - {}\n\
-- O remetente deste e-mail chama-se {}. Assina SEMPRE com {} no final.\n\
+- Apenas UMA saudação inicial isolada na primeira linha ({}), seguida de duplo enter. NUNCA escrevas duas saudações seguidas.\n\
+\n\
+REMETENTE E ASSINATURA:\n\
+- O remetente deste e-mail chama-se {}. Ao assinar, assina SEMPRE E EXCLUSIVAMENTE com {}.\n\
+- NUNCA assines com o nome do destinatário a quem escreves nem inventes outros nomes.\n\
 \n\
 ESTRUTURA OBRIGATÓRIA (COM DUPLO ENTER ENTRE PARÁGRAFOS):\n\
-1. Apenas UMA saudação inicial isolada na primeira linha ({}), seguida de duplo enter. NUNCA escrevas duas saudações seguidas.\n\
+1. Saudação inicial isolada ({}), seguida de duplo enter.\n\
 2. Corpo do e-mail dividido em parágrafos claros, elegantes e espaçados por duplo enter.\n\
 3. Fórmula de cortesia ou disponibilidade isolada numa linha (exemplo: 'Fico ao dispor para qualquer esclarecimento adicional.'), seguida de duplo enter.\n\
 4. Despedida formal ('Com os melhores cumprimentos,'), seguida de enter e {}.\n\
 \n\
-REGRAS DE CONTEÚDO E LINGUAGEM (PROIBIÇÕES ESTRITAS):\n\
-1. ZERO COLCHETES OU PLACEHOLDERS: É expressamente PROIBIDO escrever '[Nome]', '[Seu Nome]', '[Destinatário]', '[Assinatura]'. Usa apenas o nome fornecido ou saudação direta.\n\
-2. ZERO FRASES BUROCRÁTICAS ROBÓTICAS OU INTRODUÇÕES DESNECESSÁRIAS:\n\
-   - NUNCA escrevas introduções robóticas como 'Aqui se encontra uma solicitação...' ou 'Venho por este meio apresentar um pedido...'.\n\
-   - Trata direta e educadamente do assunto do utilizador.\n\
-3. ZERO PORTUGUÊS DO BRASIL (ESTRITO PT-PT):\n\
-   - NUNCA uses 'Prezado' (usa 'Estimado' ou 'Caro').\n\
-   - NUNCA uses 'você' nem 'você tem' (usa conjugação formal de Portugal: 'se tem disponibilidade', 'se tiver disponibilidade', 'quando lhe for conveniente', 'se for oportuno').\n\
-   - NUNCA uses expressões brasileiras como 'jogar bola' (em Portugal diz-se 'jogar à bola' ou 'jogar futebol'), 'celular', 'no aguardo', 'cadastrar'.\n\
-   - Usa SEMPRE ênclise com infinitivos ('acompanhar-me', 'dizer-me', 'enviar-me', e NUNCA 'me acompanhar', 'me dizer', 'me enviar').\n\
+PROIBIÇÕES ESTRITAS DE CONTEÚDO E FORMATO:\n\
+1. ZERO CABEÇALHOS: É expressamente PROIBIDO escrever 'Subject:', 'Assunto:', cabeçalhos de e-mail ou tags XML. Escreve EXCLUSIVAMENTE o corpo do e-mail.\n\
+2. ZERO PLACEHOLDERS: É expressamente PROIBIDO escrever '[Nome]', '[Seu Nome]', '[Destinatário]', '[Assinatura]'.\n\
+3. ZERO FÓRMULAS BUROCRÁTICAS ROBÓTICAS OU ARCAICAS:\n\
+   - NUNCA uses fórmulas pesadas como 'Venho por este meio', 'Venho por meio desta', 'Sirvo-me do presente', 'Cumpre-me informar', 'Aqui se encontra...'.\n\
+   - Escreve com fluidez, elegância e naturalidade moderna em português europeu.\n\
+   - Exemplo de transformação correta:\n\
+     Texto: \"ola joao podemos reunir amanha as 15h para ver o orcamento obrigado\"\n\
+     Resultado:\n\
+     Olá João,\n\
+\n\
+     Seria possível reunirmo-nos amanhã às 15h00 para revermos o orçamento?\n\
+\n\
+     Obrigado.\n\
+\n\
+     Com os melhores cumprimentos,\n\
+     {}\n\
+4. ZERO PORTUGUÊS DO BRASIL (ESTRITO PT-PT):\n\
+   - NUNCA uses 'Prezado' (usa 'Estimado', 'Caro' ou 'Olá').\n\
+   - NUNCA uses 'você' (usa 'se tiver disponibilidade', 'quando lhe for conveniente', 'se for oportuno').\n\
+   - Usa SEMPRE ênclise com infinitivos ('acompanhar-me', 'dizer-me', 'enviar-me', 'reunirmo-nos').\n\
    - Usa 'num / numa' e NUNCA 'em um / em uma'.\n\
-4. SEM META-TEXTO: Escreve apenas o e-mail final formatado.",
-                    user_sig, greeting_directive, user_sig, user_sig, greeting_sample, user_sig
+5. SEM META-TEXTO: Escreve apenas o e-mail final formatado.",
+                    user_sig,
+                    greeting_directive,
+                    greeting_sample,
+                    user_sig,
+                    user_sig,
+                    greeting_sample,
+                    user_sig,
+                    user_sig
                 ),
 
                 "organize_and_correct" => format!("\
 És o assistente de redação e revisão do Kwrl, especialista em português europeu (Portugal).\n\
-O teu papel é rever, organizar e estruturar o texto fornecido pelo utilizador.\n\
+O teu papel é rever, organizar e estruturar o texto fornecido pelo utilizador com clareza, pontuação correta e parágrafos bem espaçados.\n\
 \n\
-CONTEXTO DE ESCRITA (NOVA MENSAGEM DO ZERO):\n\
-- Este e-mail é uma composição escrita pelo remetente ({}). NÃO inventes mensagens anteriores nem agradeças nada não solicitado.\n\
-\n\
-REGRA FUNDAMENTAL DE FIDELIDADE (ZERO ALUCINAÇÕES):\n\
-1. BASEIA-TE EXCLUSIVAMENTE nas ideias e assuntos escritos pelo utilizador. NUNCA inventes tarefas, serviços ou temas não mencionados no texto de entrada.\n\
-2. Mantém o assunto do texto fiel e corrige rigorosamente todos os erros de ortografia, acentuação, concordância e pontuação.\n\
-\n\
-DESTINATÁRIO E REMETENTE:\n\
-- {}\n\
-- O remetente chama-se {}. Assina com {} se for apropriado assinar.\n\
-\n\
-ESTRUTURA OBRIGATÓRIA DE ESTRUTURAÇÃO (ENTERS / QUEBRAS DE LINHA):\n\
-1. NUNCA deixes o texto corrido numa linha só. Mesmo que o texto de entrada esteja todo numa única linha contínua, divide-o obrigatoriamente em parágrafos espaçados por DUPLO ENTER (linha em branco).\n\
-2. Apenas UMA saudação inicial ({}), seguida de duplo enter.\n\
-3. Corpo dividido em parágrafos arejados, separados por duplo enter.\n\
-4. Despedida isolada, seguida de enter e assinatura.\n\
-\n\
-REGRAS DE REVISÃO E ESTILO:\n\
-- ZERO COLCHETES OU PLACEHOLDERS: NUNCA escrevas '[Nome]' nem '[Seu Nome]'.\n\
-- Usa SEMPRE português de Portugal (pt-PT): ênclise correta ('diz-me', 'envia-me', 'acompanhar-me') e NUNCA próclise brasileira.\n\
-- SEM META-TEXTO: Devolve APENAS o texto final pronto a enviar, sem introduções ou explicações.",
-                    user_sig, greeting_directive, user_sig, user_sig, greeting_sample
+REGRAS FUNDAMENTAIS:\n\
+1. Mantém com total fidelidade o sentido e os factos do texto de entrada. Corrige erros de ortografia, acentuação e concordância em português de Portugal.\n\
+2. {}\n\
+3. O remetente chama-se {}. Se o texto contiver assinatura, assina com {}.\n\
+4. ESTRUTURA DE E-MAIL (DUPLO ENTER): Divide o texto em parágrafos separados por linhas em branco (duplo enter). NUNCA deixes o texto corrido numa linha contínua.\n\
+5. ZERO CABEÇALHOS OU META-TEXTO: NUNCA escrevas 'Subject:', 'Assunto:', notas ou explicações. Devolve APENAS o texto revisado.",
+                    greeting_directive, user_sig, user_sig
                 ),
 
                 "short" => "\
 És o assistente de síntese do Kwrl. O teu papel é condensar o texto fornecido tornando-o conciso, direto e objetivo em português europeu (pt-PT).\n\
 \n\
-ESTRUTURAÇÃO:\n\
-- Divide o texto com quebras de linha limpas e parágrafos espaçados por duplo enter. Não deixes o texto corrido numa linha só.\n\
-- Elimina rodeios e palavras supérfluas, preservando os pontos principais.\n\
-- SEM META-TEXTO: Devolve APENAS o texto condensado formatado.".to_string(),
+REGRAS ESTRITAS:\n\
+1. Elimina rodeios e palavras supérfluas, preservando todos os factos, pedidos e datas essenciais.\n\
+2. Divide o texto com quebras de linha limpas e parágrafos espaçados por duplo enter.\n\
+3. NUNCA escrevas 'Subject:', 'Assunto:' nem cabeçalhos de e-mail.\n\
+4. SEM META-TEXTO: Devolve APENAS o texto condensado formatado.".to_string(),
 
                 "translate" => format!(
                     "You are an expert translator. Your role is to translate the user's text into {target_lang_en} ({target_lang_pt}).\n\
@@ -919,15 +944,15 @@ REGRAS:\n\
 
             let usr = match action {
                 "formal" => format!(
-                    "<TEXTO_BRUTO>\n{}\n</TEXTO_BRUTO>\n\nReescreve o texto bruto acima num e-mail formal elegante, sem placeholders '[Nome]' nem frases robóticas, dividindo por parágrafos e quebras de linha:",
+                    "<TEXTO_BRUTO>\n{}\n</TEXTO_BRUTO>\n\nReescreve o texto bruto acima num e-mail formal elegante, sem cabeçalhos 'Subject:', sem placeholders '[Nome]' nem frases robóticas, dividindo por parágrafos e quebras de linha:",
                     text.trim()
                 ),
                 "organize_and_correct" => format!(
-                    "<TEXTO_BRUTO>\n{}\n</TEXTO_BRUTO>\n\nRevê, corrige e organiza o texto bruto acima, dividindo-o em parágrafos espaçados por linhas em branco sem placeholders:",
+                    "<TEXTO_BRUTO>\n{}\n</TEXTO_BRUTO>\n\nRevê, corrige e organiza o texto bruto acima sem cabeçalhos 'Subject:', dividindo-o em parágrafos espaçados por linhas em branco sem placeholders:",
                     text.trim()
                 ),
                 "short" => format!(
-                    "<TEXTO_BRUTO>\n{}\n</TEXTO_BRUTO>\n\nCondensa o texto acima mantendo parágrafos limpos e estruturados com quebras de linha:",
+                    "<TEXTO_BRUTO>\n{}\n</TEXTO_BRUTO>\n\nCondensa o texto acima sem cabeçalhos 'Subject:', mantendo parágrafos limpos e estruturados com quebras de linha:",
                     text.trim()
                 ),
                 "translate" => format!(
@@ -1009,11 +1034,14 @@ REGRAS:\n\
             return Ok(completed);
         }
 
+        // 0. Remove linha de Subject/Assunto inicial se o modelo tiver alucinado
+        let stripped_subject = crate::prompt_guard::strip_leading_subject_line(&completed.full_text);
+
         // 1. Limpa marcadores literais ([Nome], [Seu Nome]) e saudações duplicadas
         let cleaned_text = crate::prompt_guard::clean_email_placeholders_and_duplicates(
-            &completed.full_text,
+            &stripped_subject,
             user_sig,
-            recipient_display_name.as_deref(),
+            resolved_recipient,
         );
 
         // 2. Normaliza para português europeu autêntico apenas quando o texto é em português

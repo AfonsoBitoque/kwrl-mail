@@ -1109,6 +1109,37 @@ pub fn enforce_european_portuguese_rules(raw: &str) -> String {
         ("fico a aguardar e volto a contactar", "vou analisar com atenção e volto a contactar"),
         ("Fico a aguardar para analisar", "Vou analisar com calma"),
         ("fico a aguardar para analisar", "vou analisar com calma"),
+        ("Cumpre-me informar que", "Informo que"),
+        ("cumpre-me informar que", "informo que"),
+        ("Venho por este meio comunicar que gostaria de reunir", "Gostaria de saber se seria possível reunirmo-nos"),
+        ("venho por este meio comunicar que gostaria de reunir", "gostaria de saber se seria possível reunirmo-nos"),
+        ("Venho por este meio comunicar que gostaria de", "Gostaria de"),
+        ("venho por este meio comunicar que gostaria de", "gostaria de"),
+        ("Venho por este meio comunicar que", "Escrevo para informar que"),
+        ("venho por este meio comunicar que", "escrevo para informar que"),
+        ("Venho por este meio solicitar", "Gostaria de solicitar"),
+        ("venho por este meio solicitar", "gostaria de solicitar"),
+        ("Venho por este meio pedir", "Gostaria de pedir"),
+        ("venho por este meio pedir", "gostaria de pedir"),
+        ("Venho por este meio propor", "Gostaria de propor"),
+        ("venho por este meio propor", "gostaria de propor"),
+        ("Venho por este meio apresentar", "Apresento"),
+        ("venho por este meio apresentar", "apresento"),
+        ("Venho por este meio informar que", "Informo que"),
+        ("venho por este meio informar que", "informo que"),
+        ("Venho por este meio informar", "Gostaria de informar"),
+        ("venho por este meio informar", "gostaria de informar"),
+        ("Venho por este meio", "Escrevo para"),
+        ("venho por este meio", "escrevo para"),
+        ("Venho por meio deste", "Escrevo para"),
+        ("venho por meio deste", "escrevo para"),
+        ("Venho por meio desta", "Escrevo para"),
+        ("venho por meio desta", "escrevo para"),
+        ("Sirvo-me do presente para", "Escrevo para"),
+        ("sirvo-me do presente para", "escrevo para"),
+        ("Sirvo-me deste meio para", "Escrevo para"),
+        ("sirvo-me deste meio para", "escrevo para"),
+        ("Aqui se encontra uma solicitação", "Segue o meu pedido"),
     ];
     for (from, to) in waiting_contradictions {
         if out.contains(from) {
@@ -1151,30 +1182,304 @@ pub fn enforce_european_portuguese_rules(raw: &str) -> String {
     out
 }
 
-/// Remove saudações consecutivas duplicadas de forma segura (ex: `Olá Jonh,\n\nBoa tarde!\n\n` -> `Olá Jonh,\n\n`).
-fn strip_redundant_greetings(text: &str) -> String {
-    let mut lines: Vec<&str> = text.lines().collect();
-    if lines.len() >= 3 {
-        let first = lines[0].trim();
-        let second = lines[1].trim();
-        let third = lines[2].trim();
-        let is_first_greeting = first.starts_with("Olá")
-            || first.starts_with("Boa tarde")
-            || first.starts_with("Bom dia")
-            || first.starts_with("Boa noite");
-        let is_third_greeting = (third.starts_with("Boa tarde")
-            || third.starts_with("Bom dia")
-            || third.starts_with("Olá")
-            || third.starts_with("Boa noite"))
-            && third.len() <= 16;
-        if is_first_greeting && second.is_empty() && is_third_greeting {
-            lines.remove(2);
-            if lines.len() > 2 && lines[2].trim().is_empty() {
-                lines.remove(2);
+/// Remove linha de cabeçalho de assunto (ex: `Subject: ...`, `Assunto: ...`) se gerada pelo modelo no corpo do e-mail.
+pub fn strip_leading_subject_line(text: &str) -> String {
+    let mut result_lines = Vec::new();
+    let mut stripped = false;
+    let mut checked_first = false;
+
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if !checked_first {
+            if trimmed.is_empty() {
+                continue;
             }
-            return lines.join("\n");
+            checked_first = true;
+            let norm = normalize_for_greeting(trimmed);
+            if norm.starts_with("subject:")
+                || norm.starts_with("assunto:")
+                || norm.starts_with("asunto:")
+                || norm.starts_with("objet:")
+                || norm.starts_with("objet :")
+                || norm.starts_with("betreff:")
+            {
+                stripped = true;
+                continue;
+            }
+        }
+        if stripped && result_lines.is_empty() && trimmed.is_empty() {
+            continue;
+        }
+        result_lines.push(line);
+    }
+
+    result_lines.join("\n")
+}
+
+pub fn normalize_for_greeting(s: &str) -> String {
+    let lower = s.trim().to_lowercase();
+    let clean = lower
+        .trim_start_matches(|c: char| c == '-' || c == '*' || c == '>' || c == '#' || c == ':')
+        .trim();
+    clean
+        .chars()
+        .map(|c| match c {
+            'á' | 'à' | 'ã' | 'â' | 'ä' => 'a',
+            'é' | 'è' | 'ê' | 'ë' => 'e',
+            'í' | 'ì' | 'î' | 'ï' => 'i',
+            'ó' | 'ò' | 'õ' | 'ô' | 'ö' => 'o',
+            'ú' | 'ù' | 'û' | 'ü' => 'u',
+            'ç' => 'c',
+            _ => c,
+        })
+        .collect()
+}
+
+pub fn is_greeting_line(line: &str) -> bool {
+    let norm = normalize_for_greeting(line);
+    if norm.is_empty() {
+        return false;
+    }
+    let prefixes = [
+        "ola",
+        "oi",
+        "bom dia",
+        "boa tarde",
+        "boa noite",
+        "estimado",
+        "estimada",
+        "caro",
+        "cara",
+        "exmo",
+        "exma",
+        "prezado",
+        "prezada",
+        "dear",
+        "hello",
+        "hi",
+        "hey",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "greetings",
+        "hola",
+        "buenos dias",
+        "buenas tardes",
+        "buenas noches",
+        "distinguido",
+        "distinguida",
+        "bonjour",
+        "bonsoir",
+        "cher",
+        "chere",
+        "salut",
+    ];
+
+    for p in prefixes {
+        if norm == p {
+            return true;
+        }
+        if norm.starts_with(p) {
+            let next_char = norm[p.len()..].chars().next();
+            match next_char {
+                Some(' ') | Some(',') | Some(':') | Some('!') | Some('.') | Some('(') | Some(')') | Some('/') | None => return true,
+                _ => {}
+            }
         }
     }
+    false
+}
+
+pub fn greeting_has_name(line: &str) -> bool {
+    let norm = normalize_for_greeting(line);
+    let prefixes = [
+        "bom dia",
+        "boa tarde",
+        "boa noite",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "buenos dias",
+        "buenas tardes",
+        "buenas noches",
+        "estimado(a)",
+        "estimada",
+        "estimado",
+        "caro(a)",
+        "cara",
+        "caro",
+        "exmo.(a)",
+        "exma.",
+        "exmo.",
+        "exma",
+        "exmo",
+        "prezado(a)",
+        "prezada",
+        "prezado",
+        "distinguido",
+        "distinguida",
+        "bonjour",
+        "bonsoir",
+        "chere",
+        "cher",
+        "salut",
+        "greetings",
+        "hello",
+        "dear",
+        "hola",
+        "ola",
+        "hey",
+        "hi",
+        "oi",
+    ];
+
+    for p in prefixes {
+        if norm.starts_with(p) {
+            let after = norm[p.len()..]
+                .trim_matches(|c: char| {
+                    c == ' ' || c == ',' || c == ':' || c == '!' || c == '.' || c == '-' || c == '(' || c == ')'
+                })
+                .trim();
+            if !after.is_empty() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Extrai o nome do destinatário a partir do início de um rascunho de utilizador (ex: "ola joao...", "hi john...").
+pub fn extract_draft_addressee(text: &str) -> Option<String> {
+    let first_line = text.lines().find(|l| !l.trim().is_empty())?.trim();
+    let norm = normalize_for_greeting(first_line);
+    let prefixes = [
+        "bom dia",
+        "boa tarde",
+        "boa noite",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "buenos dias",
+        "buenas tardes",
+        "buenas noches",
+        "estimado(a)",
+        "estimada",
+        "estimado",
+        "caro(a)",
+        "cara",
+        "caro",
+        "exmo.(a)",
+        "exma.",
+        "exmo.",
+        "exma",
+        "exmo",
+        "prezado(a)",
+        "prezada",
+        "prezado",
+        "distinguido",
+        "distinguida",
+        "bonjour",
+        "bonsoir",
+        "chere",
+        "cher",
+        "salut",
+        "dear",
+        "hello",
+        "hola",
+        "ola",
+        "hey",
+        "hi",
+        "oi",
+    ];
+
+    for p in prefixes {
+        if norm.starts_with(p) {
+            let p_word_count = p.split_whitespace().count();
+            let words: Vec<&str> = first_line.split_whitespace().collect();
+            if words.len() > p_word_count {
+                let candidate = words[p_word_count]
+                    .trim_matches(|c: char| c == ',' || c == ':' || c == '!' || c == '.' || c == '?' || c == ';');
+                let cand_lower = candidate.to_lowercase();
+                let ignored = [
+                    "tudo", "todos", "todas", "pessoal", "equipa", "equipe", "gente",
+                    "amigos", "amigo", "colega", "colegas", "there", "all", "everyone",
+                    "everybody", "team", "folks", "guys", "mon", "tous", "le",
+                ];
+                if !candidate.is_empty()
+                    && !ignored.contains(&cand_lower.as_str())
+                    && candidate.chars().all(|c| c.is_alphabetic())
+                {
+                    let mut capitalized = candidate.to_string();
+                    if let Some(first_char) = capitalized.chars().next() {
+                        let upper = first_char.to_uppercase().to_string();
+                        capitalized.replace_range(..first_char.len_utf8(), &upper);
+                    }
+                    return Some(capitalized);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Remove saudações consecutivas duplicadas de forma segura em qualquer idioma (PT, EN, ES, FR).
+pub fn strip_redundant_greetings(text: &str) -> String {
+    let lines: Vec<&str> = text.lines().collect();
+    if lines.is_empty() {
+        return text.to_string();
+    }
+
+    let mut first_idx = None;
+    let mut second_idx = None;
+
+    for (i, line) in lines.iter().enumerate() {
+        if !line.trim().is_empty() {
+            if first_idx.is_none() {
+                first_idx = Some(i);
+            } else if second_idx.is_none() {
+                second_idx = Some(i);
+                break;
+            }
+        }
+    }
+
+    if let (Some(i1), Some(i2)) = (first_idx, second_idx) {
+        let line1 = lines[i1].trim();
+        let line2 = lines[i2].trim();
+
+        if is_greeting_line(line1) && is_greeting_line(line2) {
+            let name1 = greeting_has_name(line1);
+            let name2 = greeting_has_name(line2);
+
+            let drop_idx = if name1 && !name2 {
+                i2
+            } else {
+                i1
+            };
+
+            let drop_blank_idx = if drop_idx == i1 {
+                if i2 > i1 + 1 && lines[i1 + 1].trim().is_empty() {
+                    Some(i1 + 1)
+                } else {
+                    None
+                }
+            } else if i2 > i1 + 1 && lines[i2 - 1].trim().is_empty() {
+                Some(i2 - 1)
+            } else {
+                None
+            };
+
+            let mut out = Vec::new();
+            for (idx, line) in lines.iter().enumerate() {
+                if idx == drop_idx || Some(idx) == drop_blank_idx {
+                    continue;
+                }
+                out.push(*line);
+            }
+            return out.join("\n").trim_start().to_string();
+        }
+    }
+
     text.to_string()
 }
 
@@ -1226,9 +1531,25 @@ pub fn format_email_newlines(text: &str) -> String {
             "Caro",
             "Cara",
             "Olá",
+            "Ola",
             "Bom dia",
             "Boa tarde",
             "Boa noite",
+            "Dear",
+            "Hello",
+            "Hi",
+            "Good morning",
+            "Good afternoon",
+            "Good evening",
+            "Hola",
+            "Buenos días",
+            "Buenos dias",
+            "Buenas tardes",
+            "Buenas noches",
+            "Bonjour",
+            "Bonsoir",
+            "Cher",
+            "Chère",
         ];
         for g in greetings_prefixes {
             if let Some(pos) = working.find(g) {
@@ -1260,6 +1581,28 @@ pub fn format_email_newlines(text: &str) -> String {
             "Um abraço",
             "Cumprimentos,",
             "Cumprimentos",
+            "Best regards,",
+            "Best regards",
+            "Kind regards,",
+            "Kind regards",
+            "Warm regards,",
+            "Warm regards",
+            "Sincerely,",
+            "Sincerely",
+            "Cheers,",
+            "Cheers",
+            "Thank you,",
+            "Thank you",
+            "Thanks,",
+            "Thanks",
+            "Saludos cordiales,",
+            "Saludos cordiales",
+            "Atentamente,",
+            "Atentamente",
+            "Cordialement,",
+            "Cordialement",
+            "Bien cordialement,",
+            "Bien cordialement",
         ];
         for f in farewells {
             if let Some(f_pos) = working.find(f) {
@@ -1282,9 +1625,25 @@ pub fn format_email_newlines(text: &str) -> String {
         "Exmo",
         "Exma",
         "Olá",
+        "Ola",
         "Bom dia",
         "Boa tarde",
         "Boa noite",
+        "Dear",
+        "Hello",
+        "Hi",
+        "Good morning",
+        "Good afternoon",
+        "Good evening",
+        "Hola",
+        "Buenos días",
+        "Buenos dias",
+        "Buenas tardes",
+        "Buenas noches",
+        "Bonjour",
+        "Bonsoir",
+        "Cher",
+        "Chère",
     ];
     let farewells = [
         "Com os melhores cumprimentos",
@@ -1296,6 +1655,17 @@ pub fn format_email_newlines(text: &str) -> String {
         "Fico à disposição",
         "Um abraço",
         "Com consideração",
+        "Best regards",
+        "Kind regards",
+        "Warm regards",
+        "Sincerely",
+        "Cheers",
+        "Thank you",
+        "Thanks",
+        "Saludos cordiales",
+        "Un cordial saludo",
+        "Cordialement",
+        "Bien cordialement",
     ];
 
     let lines: Vec<&str> = working.lines().collect();
@@ -1427,27 +1797,8 @@ pub fn clean_email_placeholders_and_duplicates(
         replace_if_present(&mut cleaned, br, pt);
     }
 
-    // 5. Deteta e elimina saudações consecutivas duplicadas geradas acidentalmente pelo modelo
-    let lines: Vec<&str> = cleaned.lines().collect();
-    if lines.len() >= 3 {
-        let first = lines[0].trim().to_lowercase();
-        let second = lines[1].trim();
-        let third = lines[2].trim().to_lowercase();
-
-        let is_greeting = |s: &str| {
-            s.starts_with("exmo")
-                || s.starts_with("estimad")
-                || s.starts_with("caro")
-                || s.starts_with("cara")
-                || s.starts_with("olá")
-                || s.starts_with("bom dia")
-                || s.starts_with("boa tarde")
-        };
-
-        if is_greeting(&first) && second.is_empty() && is_greeting(&third) {
-            cleaned = lines[2..].join("\n");
-        }
-    }
+    // 5. Deteta e elimina saudações consecutivas duplicadas geradas acidentalmente pelo modelo (em qualquer idioma)
+    cleaned = strip_redundant_greetings(&cleaned);
 
     cleaned
 }
@@ -1458,6 +1809,10 @@ pub fn clean_translation_meta_text(raw: &str) -> String {
     for line in raw.lines() {
         let trimmed = line.trim();
         let lower = trimmed.to_lowercase();
+        // Remove traços ou asteriscos vazios
+        if trimmed == "-" || trimmed == "*" {
+            continue;
+        }
         // Remove linhas de meta-texto, notas e checklists explicativos
         if lower.starts_with("- manteve ")
             || lower.starts_with("manteve a estrutura")
@@ -1795,5 +2150,102 @@ mod tests {
         );
         assert!(sys_en.contains("English"));
         assert!(usr_en.contains("Key facts:"));
+    }
+
+    #[test]
+    fn extracts_draft_addressee_correctly() {
+        assert_eq!(
+            extract_draft_addressee("ola joao podemos reunir amanha as 15h para ver o orcamento obrigado"),
+            Some("Joao".to_string())
+        );
+        assert_eq!(
+            extract_draft_addressee("hi john can we meet tomorrow at 3pm to discuss the budget thanks"),
+            Some("John".to_string())
+        );
+        assert_eq!(
+            extract_draft_addressee("Olá Carlos, tudo bem com o projeto?"),
+            Some("Carlos".to_string())
+        );
+        assert_eq!(
+            extract_draft_addressee("Cher Pierre, merci pour ton retour rapide."),
+            Some("Pierre".to_string())
+        );
+        assert_eq!(
+            extract_draft_addressee("Hola Juan, ¿cómo estás?"),
+            Some("Juan".to_string())
+        );
+        // Conversational or collective words should be ignored
+        assert_eq!(
+            extract_draft_addressee("ola tudo bem podemos reunir amanhã?"),
+            None
+        );
+        assert_eq!(
+            extract_draft_addressee("hi there can we talk?"),
+            None
+        );
+        assert_eq!(
+            extract_draft_addressee("podemos reunir amanhã às 15h"),
+            None
+        );
+    }
+
+    #[test]
+    fn strips_leading_subject_line_in_multiple_languages() {
+        let en = "Subject: Meeting Request for Budget Discussion\n\nDear John,\n\nCan we meet tomorrow?";
+        assert_eq!(
+            strip_leading_subject_line(en),
+            "Dear John,\n\nCan we meet tomorrow?"
+        );
+
+        let pt = "Assunto: Proposta Orçamental\n\nOlá João,\n\nSegue a proposta em anexo.";
+        assert_eq!(
+            strip_leading_subject_line(pt),
+            "Olá João,\n\nSegue a proposta em anexo."
+        );
+
+        let fr = "Objet: Réunion de demain\n\nBonjour Pierre,\n\nMerci pour ton retour.";
+        assert_eq!(
+            strip_leading_subject_line(fr),
+            "Bonjour Pierre,\n\nMerci pour ton retour."
+        );
+
+        let no_subject = "Olá João,\n\nPodemos reunir amanhã às 15h?";
+        assert_eq!(strip_leading_subject_line(no_subject), no_subject);
+    }
+
+    #[test]
+    fn strips_redundant_greetings_in_portuguese_and_english() {
+        // Double greeting reported by user in Portuguese
+        let double_pt = "Estimado Afonsobitoque,\n\nOla João,\n\nGostaria de reunir amanhã.";
+        let cleaned_pt = strip_redundant_greetings(double_pt);
+        assert!(!cleaned_pt.contains("Estimado Afonsobitoque"));
+        assert!(cleaned_pt.starts_with("Ola João,"));
+
+        // Double greeting reported by user in English
+        let double_en = "Dear Afonsobitoque,\n\nHi John,\n\nCan we meet tomorrow?";
+        let cleaned_en = strip_redundant_greetings(double_en);
+        assert!(!cleaned_en.contains("Dear Afonsobitoque"));
+        assert!(cleaned_en.starts_with("Hi John,"));
+
+        // Name greeting followed by generic greeting
+        let generic_pt = "Olá Jonh,\n\nBoa tarde!\n\nSegue o documento.";
+        let cleaned_gen = strip_redundant_greetings(generic_pt);
+        assert!(cleaned_gen.starts_with("Olá Jonh,"));
+        assert!(!cleaned_gen.contains("Boa tarde!"));
+    }
+
+    #[test]
+    fn cleans_bureaucratic_cliches_and_formats_cleanly() {
+        let raw = "Estimado Afonsobitoque,\n\nOla João,\n\nVenho por este meio comunicar que gostaria de reunir amanhã, às 15h, para ver o orçamento.\n\nObrigado.\n\nCom os melhores cumprimentos,\nPredm";
+        let step0 = strip_leading_subject_line(raw);
+        let step1 = clean_email_placeholders_and_duplicates(&step0, "Predm", Some("Joao"));
+        let step2 = enforce_european_portuguese_rules(&step1);
+        let final_text = format_email_newlines(&step2);
+
+        assert!(!final_text.contains("Estimado Afonsobitoque"));
+        assert!(!final_text.contains("Venho por este meio"));
+        assert!(final_text.contains("Gostaria de saber se seria possível reunirmo-nos"));
+        assert!(final_text.contains("João,") || final_text.contains("Joao,"));
+        assert!(final_text.contains("Predm"));
     }
 }
