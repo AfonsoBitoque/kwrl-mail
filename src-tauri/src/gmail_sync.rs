@@ -805,6 +805,8 @@ impl GmailSyncEngine {
             .client
             .post(&url)
             .bearer_auth(&bearer)
+            .header(reqwest::header::CONTENT_LENGTH, 0)
+            .body("")
             .send()
             .await
             .map_err(|e| GmailSyncError::Transport(e.to_string()))?;
@@ -838,6 +840,8 @@ impl GmailSyncEngine {
             .client
             .post(&url)
             .bearer_auth(&bearer)
+            .header(reqwest::header::CONTENT_LENGTH, 0)
+            .body("")
             .send()
             .await
             .map_err(|e| GmailSyncError::Transport(e.to_string()))?;
@@ -1696,5 +1700,56 @@ Content-Type: application/json; charset=UTF-8\r\n\r\n\
         let threads = db.list_threads_lightweight(Some("ines@atelier.pt"), None, None, 10).unwrap();
         assert_eq!(threads.len(), 1);
         assert!(threads[0].is_inbox, "A conversa tem de continuar com is_inbox = true após 403");
+    }
+
+    #[tokio::test]
+    async fn trash_thread_remote_includes_content_length_header() {
+        let server = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = server.local_addr().unwrap();
+
+        tokio::spawn(async move {
+            let Ok((mut sock, _)) = server.accept().await else { return };
+            let mut buf = [0u8; 2048];
+            let n = sock.read(&mut buf).await.unwrap_or(0);
+            let req_str = String::from_utf8_lossy(&buf[..n]).to_lowercase();
+            // Valida que o cabeçalho Content-Length está presente (Google exige para evitar HTTP 411)
+            let (status, body) = if req_str.contains("content-length:") {
+                ("200 OK", r#"{"id":"thread_trash_123","historyId":"999"}"#)
+            } else {
+                ("411 Length Required", r#"POST requests require a Content-length header."#)
+            };
+            let resp = format!(
+                "HTTP/1.1 {}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                status,
+                body.len(),
+                body
+            );
+            let _ = sock.write_all(resp.as_bytes()).await;
+        });
+
+        let db = Arc::new(LocalDatabase::open_in_memory().unwrap());
+        let token_mgr = TokenManager::with_vault(Arc::new(InMemoryTestVault::default()));
+        token_mgr
+            .persist_initial_tokens("test@example.com", "ya29.ok", 3600, Some("1//rt"), now_epoch())
+            .unwrap();
+
+        let engine = GmailSyncEngine::with_endpoints(
+            build_gmail_http_client().unwrap(),
+            db,
+            token_mgr,
+            GmailEndpoints {
+                api_base: format!("http://{}", addr),
+                token_url: format!("http://{}/token", addr),
+            },
+        );
+        let cfg = DesktopOAuthClientConfig {
+            client_id: "cid".into(),
+            client_secret: "csec".into(),
+        };
+
+        let res = engine
+            .trash_thread_remote(&cfg, "test@example.com", "thread_trash_123")
+            .await;
+        assert!(res.is_ok(), "trash_thread_remote deve ter sucesso e incluir Content-Length: {:?}", res);
     }
 }
