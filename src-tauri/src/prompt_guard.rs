@@ -1050,10 +1050,34 @@ const PT_RULES: &[(&str, &str)] = &[
         ("Nota fiscal", "Fatura"),
         ("notas fiscais", "faturas"),
         ("Notas fiscais", "Faturas"),
+        ("o boleto bancário", "a fatura bancária"),
+        ("O boleto bancário", "A fatura bancária"),
+        ("o boleto", "a fatura"),
+        ("O boleto", "A fatura"),
+        ("do boleto", "da fatura"),
+        ("Do boleto", "Da fatura"),
+        ("ao boleto", "à fatura"),
+        ("Ao boleto", "À fatura"),
+        ("um boleto", "uma fatura"),
+        ("Um boleto", "Uma fatura"),
+        ("os boletos", "as faturas"),
+        ("Os boletos", "As faturas"),
+        ("dos boletos", "das faturas"),
+        ("aos boletos", "às faturas"),
         ("boleto bancário", "fatura bancária"),
         ("Boleto bancário", "Fatura bancária"),
         ("boleto", "fatura"),
         ("Boleto", "Fatura"),
+        ("pra gente", "para nós"),
+        ("Pra gente", "Para nós"),
+        ("para a gente", "para nós"),
+        ("jogar bola", "jogar à bola"),
+        ("Jogar bola", "Jogar à bola"),
+        ("jogarmos bola", "jogarmos à bola"),
+        ("Jogarmos bola", "Jogarmos à bola"),
+        (" me informou", " informou-me"),
+        (" me disse", " disse-me"),
+        (" me falou", " falou-me"),
         ("usuário", "utilizador"),
         ("Usuário", "Utilizador"),
         ("usuários", "utilizadores"),
@@ -1396,8 +1420,17 @@ pub fn extract_draft_addressee(text: &str) -> Option<String> {
         if norm.starts_with(p) {
             let p_word_count = p.split_whitespace().count();
             let words: Vec<&str> = first_line.split_whitespace().collect();
-            if words.len() > p_word_count {
-                let candidate = words[p_word_count]
+            let mut cand_idx = p_word_count;
+            if cand_idx < words.len() {
+                let w_clean = words[cand_idx]
+                    .trim_matches(|c: char| c == ',' || c == ':' || c == '!' || c == '.' || c == '?' || c == ';')
+                    .to_lowercase();
+                if w_clean == "a" || w_clean == "à" || w_clean == "ao" || w_clean == "aos" || w_clean == "às" || w_clean == "to" || w_clean == "the" {
+                    cand_idx += 1;
+                }
+            }
+            if words.len() > cand_idx {
+                let candidate = words[cand_idx]
                     .trim_matches(|c: char| c == ',' || c == ':' || c == '!' || c == '.' || c == '?' || c == ';');
                 let cand_lower = candidate.to_lowercase();
                 let ignored = [
@@ -1405,7 +1438,7 @@ pub fn extract_draft_addressee(text: &str) -> Option<String> {
                     "amigos", "amigo", "colega", "colegas", "there", "all", "everyone",
                     "everybody", "team", "folks", "guys", "mon", "tous", "le",
                 ];
-                if !candidate.is_empty()
+                if candidate.len() >= 2
                     && !ignored.contains(&cand_lower.as_str())
                     && candidate.chars().all(|c| c.is_alphabetic())
                 {
@@ -1673,7 +1706,24 @@ pub fn format_email_newlines(text: &str) -> String {
 
     for (i, line) in lines.iter().enumerate() {
         let trimmed = line.trim();
-        out.push(line.to_string());
+
+        // Se uma despedida e a assinatura estiverem na mesma linha (ex: "Com os melhores cumprimentos, Predm")
+        let mut handled_split = false;
+        for f in &farewells {
+            let with_comma = format!("{},", f);
+            if trimmed.starts_with(&with_comma) && trimmed.len() > with_comma.len() {
+                let rest = trimmed[with_comma.len()..].trim();
+                if !rest.is_empty() {
+                    out.push(with_comma);
+                    out.push(rest.to_string());
+                    handled_split = true;
+                    break;
+                }
+            }
+        }
+        if !handled_split {
+            out.push(line.to_string());
+        }
 
         if i + 1 < lines.len() {
             let next_trimmed = lines[i + 1].trim();
@@ -1776,6 +1826,24 @@ pub fn clean_email_placeholders_and_duplicates(
 
     // 4. Converte próclises e brasileirismos comuns para português europeu natural
     let brazilianisms = [
+        ("o boleto bancário", "a fatura bancária"),
+        ("O boleto bancário", "A fatura bancária"),
+        ("o boleto", "a fatura"),
+        ("O boleto", "A fatura"),
+        ("do boleto", "da fatura"),
+        ("Do boleto", "Da fatura"),
+        ("ao boleto", "à fatura"),
+        ("Ao boleto", "À fatura"),
+        ("um boleto", "uma fatura"),
+        ("Um boleto", "Uma fatura"),
+        ("os boletos", "as faturas"),
+        ("Os boletos", "As faturas"),
+        ("dos boletos", "das faturas"),
+        ("aos boletos", "às faturas"),
+        ("boleto bancário", "fatura bancária"),
+        ("Boleto bancário", "Fatura bancária"),
+        ("boleto", "fatura"),
+        ("Boleto", "Fatura"),
         ("em um ", "num "),
         ("em uma ", "numa "),
         (" me acompanhar", " acompanhar-me"),
@@ -1785,13 +1853,27 @@ pub fn clean_email_placeholders_and_duplicates(
         (" me confirmar", " confirmar-me"),
         (" me responder", " responder-me"),
         (" me contactar", " contactar-me"),
+        (" me informou", " informou-me"),
+        (" me disse", " disse-me"),
         (" quando você poderia", " quando poderia"),
+        (" quando você puder", " quando puder"),
         (" se você puder", " se puder"),
         (" se você tiver", " se tiver"),
         (" você poderia", " poderia"),
         (" você pode", " pode"),
+        ("Você poderia ", "Poderia "),
+        ("você poderia ", "poderia "),
+        ("Você pode ", "Pode "),
+        ("você pode ", "pode "),
+        ("Você tem ", "Tem "),
+        ("você tem ", "tem "),
+        ("pra gente", "para nós"),
+        ("Pra gente", "Para nós"),
+        ("para a gente", "para nós"),
         ("jogar bola", "jogar à bola"),
         ("Jogar bola", "Jogar à bola"),
+        ("jogarmos bola", "jogarmos à bola"),
+        ("Jogarmos bola", "Jogarmos à bola"),
     ];
     for (br, pt) in brazilianisms {
         replace_if_present(&mut cleaned, br, pt);
@@ -2185,6 +2267,14 @@ mod tests {
         );
         assert_eq!(
             extract_draft_addressee("podemos reunir amanhã às 15h"),
+            None
+        );
+        assert_eq!(
+            extract_draft_addressee("bom dia a todos envio os pontos principais"),
+            None
+        );
+        assert_eq!(
+            extract_draft_addressee("olá a todos, bem-vindos à equipa"),
             None
         );
     }
